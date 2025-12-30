@@ -1,0 +1,247 @@
+---
+title: Server Integration
+description: Protect your API endpoints with x402 payments
+---
+
+# Server Integration
+
+Add payment protection to your API endpoints with x402 escrow.
+
+## Installation
+
+<CodeGroup>
+
+```bash npm
+npm install @x402/core @x402/express @agentokratia/x402-escrow
+```
+
+```bash pnpm
+pnpm add @x402/core @x402/express @agentokratia/x402-escrow
+```
+
+</CodeGroup>
+
+## Basic Setup
+
+```typescript
+import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
+import { EscrowScheme } from '@agentokratia/x402-escrow/server';
+
+// Configure facilitator client with your API key
+const facilitator = new HTTPFacilitatorClient({
+  url: process.env.FACILITATOR_URL!,
+  createAuthHeaders: async () => ({
+    verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+    settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+    supported: {},
+  }),
+});
+
+// Create x402 server with escrow support
+// Note: EscrowScheme requires no config - it's auto-discovered from facilitator
+const x402 = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new EscrowScheme());
+```
+
+<Note>
+  The `EscrowScheme` constructor takes no arguments. All configuration (contract addresses, token info, etc.) is automatically discovered from the facilitator.
+</Note>
+
+## Express Middleware
+
+Use `@x402/express` for Express.js applications:
+
+```typescript
+import express from 'express';
+import { paymentMiddleware } from '@x402/express';
+
+const app = express();
+
+// Define payment-protected routes
+app.use(paymentMiddleware({
+  'GET /api/premium': {
+    accepts: {
+      scheme: 'escrow',
+      price: '$0.01',        // Human-readable price
+      network: 'eip155:8453',
+      payTo: process.env.PAYMENT_ADDRESS!,
+    },
+  },
+  'POST /api/generate': {
+    accepts: {
+      scheme: 'escrow',
+      price: '$0.05',
+      network: 'eip155:8453',
+      payTo: process.env.PAYMENT_ADDRESS!,
+    },
+  },
+}, x402));
+
+// Your route handlers
+app.get('/api/premium', (req, res) => {
+  res.json({ data: 'Premium content' });
+});
+
+app.post('/api/generate', (req, res) => {
+  res.json({ result: 'Generated content' });
+});
+
+app.listen(3000);
+```
+
+## Next.js Integration
+
+Use `@x402/next` for Next.js applications:
+
+```typescript
+// app/api/premium/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { withPayment } from '@x402/next';
+import { x402 } from '@/lib/x402'; // Your configured x402 instance
+
+export const GET = withPayment(
+  async (request: NextRequest) => {
+    return NextResponse.json({ data: 'Premium content' });
+  },
+  {
+    scheme: 'escrow',
+    price: '$0.01',
+    network: 'eip155:8453',
+    payTo: process.env.PAYMENT_ADDRESS!,
+  },
+  x402
+);
+```
+
+## Pricing Formats
+
+The server accepts multiple price formats:
+
+```typescript
+// Human-readable USD prices
+price: '$0.01'       // 1 cent
+price: '$1.00'       // 1 dollar
+price: '$0.001'      // 0.1 cents
+
+// Atomic units (6 decimals for USDC)
+price: '10000'       // $0.01 (10000 / 10^6)
+price: '1000000'     // $1.00
+```
+
+## Multiple Networks
+
+Support multiple networks by registering schemes:
+
+```typescript
+const x402 = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new EscrowScheme())    // Base Mainnet
+  .register('eip155:84532', new EscrowScheme());  // Base Sepolia
+```
+
+## Adding Hooks
+
+Monitor payment events with hooks:
+
+```typescript
+const x402 = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new EscrowScheme())
+  .onBeforeVerify(async (ctx) => {
+    console.log('Verifying payment:', ctx.paymentPayload);
+  })
+  .onAfterSettle(async (ctx) => {
+    console.log('Payment settled:', ctx.settleResponse);
+    // Track revenue, update analytics, etc.
+  });
+```
+
+## Environment Variables
+
+```bash .env
+# Facilitator URL
+FACILITATOR_URL=https://facilitator.agentokratia.com
+
+# Your API key (from dashboard)
+X402_API_KEY=ak_live_xxxxxxxxxxxxx
+
+# Your receiving wallet
+PAYMENT_ADDRESS=0xYourWalletAddress
+```
+
+<Warning>
+  Never commit API keys to version control. Use environment variables or a secrets manager.
+</Warning>
+
+## Accepting Both Schemes
+
+Accept both exact and escrow schemes:
+
+```typescript
+// Accept either scheme (escrow preferred for high-frequency)
+app.use(paymentMiddleware({
+  'GET /api/premium': {
+    accepts: [
+      {
+        scheme: 'escrow',
+        price: '$0.01',
+        network: 'eip155:8453',
+        payTo: process.env.PAYMENT_ADDRESS!,
+      },
+      {
+        scheme: 'exact',
+        price: '$0.01',
+        network: 'eip155:8453',
+        payTo: process.env.PAYMENT_ADDRESS!,
+      },
+    ],
+  },
+}, x402));
+```
+
+## Error Handling
+
+The middleware automatically handles payment errors:
+
+| Status | Description |
+| ------ | ----------- |
+| 402 | Payment required - returns requirements |
+| 400 | Invalid payment payload |
+| 503 | Facilitator unavailable |
+
+For custom error handling:
+
+```typescript
+const x402 = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new EscrowScheme())
+  .onError(async (ctx, error) => {
+    console.error('Payment error:', error);
+    // Custom error handling, alerting, etc.
+  });
+```
+
+## Testing
+
+Use Base Sepolia testnet for development:
+
+```typescript
+// Test configuration (same URL, use ak_test_ key prefix)
+const facilitator = new HTTPFacilitatorClient({
+  url: 'https://facilitator.agentokratia.com',
+  createAuthHeaders: async () => ({
+    verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` }, // ak_test_xxx
+    settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+    supported: {},
+  }),
+});
+
+const x402 = new x402ResourceServer(facilitator)
+  .register('eip155:84532', new EscrowScheme()); // Base Sepolia
+```
+
+## Pricing Examples
+
+| Use Case | Price | Atomic Units |
+| -------- | ----- | ------------ |
+| API call | $0.01 | `10000` |
+| Premium feature | $0.10 | `100000` |
+| Large query | $1.00 | `1000000` |
+| Micro-transaction | $0.001 | `1000` |

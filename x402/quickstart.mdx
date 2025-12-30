@@ -1,0 +1,394 @@
+---
+title: Quickstart
+description: Get started with x402 payments in minutes
+---
+
+# Quickstart
+
+This guide will help you integrate x402 payments into your application.
+
+## Step 1: Choose Your Scheme
+
+<CardGroup cols={2}>
+  <Card title="exact" icon="receipt" href="#exact-scheme-quickstart">
+    **Per-request payments**
+
+    Standard x402. Sign each request. Best for infrequent calls.
+  </Card>
+  <Card title="escrow" icon="vault" href="#escrow-scheme-quickstart">
+    **Session-based payments**
+
+    Sign once, unlimited calls. Best for high-frequency APIs.
+  </Card>
+</CardGroup>
+
+<Tip>
+**Not sure?** Use `escrow` if you're building AI agents or making frequent API calls. Use `exact` for simple one-off payments.
+</Tip>
+
+## Environment Setup
+
+<Warning>
+  **Currently Base Sepolia only.** The facilitator is live on Base Sepolia (testnet). Base Mainnet support coming soon.
+</Warning>
+
+| Environment | Chain | Network ID | API Key Prefix | Status |
+|-------------|-------|------------|----------------|--------|
+| **Testnet** | Base Sepolia | `eip155:84532` | `ak_test_` | ✅ Live |
+| **Production** | Base Mainnet | `eip155:8453` | `ak_live_` | 🔜 Soon |
+
+**Facilitator URL:** `https://facilitator.agentokratia.com`
+
+## Installation
+
+<CodeGroup>
+
+```bash npm
+npm install @x402/core @agentokratia/x402-escrow
+```
+
+```bash pnpm
+pnpm add @x402/core @agentokratia/x402-escrow
+```
+
+```bash yarn
+yarn add @x402/core @agentokratia/x402-escrow
+```
+
+</CodeGroup>
+
+## Test Your Setup (2 minutes)
+
+Before integrating, verify everything works:
+
+<Steps>
+  <Step title="Get testnet USDC">
+    You need testnet USDC on Base Sepolia for deposits:
+    1. Get testnet ETH from [Alchemy Faucet](https://www.alchemy.com/faucets/base-sepolia)
+    2. Get testnet USDC from [Circle Faucet](https://faucet.circle.com/)
+
+    **USDC Contract (Base Sepolia):** `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
+  </Step>
+  <Step title="Verify facilitator is accessible">
+    ```bash
+    curl https://facilitator.agentokratia.com/api/supported
+    ```
+
+    Expected response (truncated):
+    ```json
+    {
+      "kinds": [{ "scheme": "exact", ... }, { "scheme": "escrow", ... }],
+      "extensions": ["agentokratia"],
+      "signers": { "eip155:8453": ["0x..."] }
+    }
+    ```
+  </Step>
+  <Step title="Get your API key (servers only)">
+    If you're protecting an API, get an API key from the [Dashboard](https://facilitator.agentokratia.com).
+  </Step>
+</Steps>
+
+<Tip>
+  **Deposit amounts:** The default is `10000000` atomic units = $10 USDC. For testing, try `1000000` ($1) to conserve testnet funds.
+</Tip>
+
+## Supported Networks
+
+| Network | Chain ID | CAIP-2 ID |
+| ------- | -------- | --------- |
+| Base Mainnet | 8453 | `eip155:8453` |
+| Base Sepolia (testnet) | 84532 | `eip155:84532` |
+
+<Note>
+  Use Base Sepolia for development. Testnet USDC is free from the faucets above.
+</Note>
+
+## Supported Wallets
+
+Any wallet supporting EIP-712 typed data signing works with x402:
+
+| Wallet | Status | Notes |
+|--------|--------|-------|
+| MetaMask | Fully supported | Browser extension + Mobile |
+| Coinbase Wallet | Fully supported | Native Base integration |
+| Rainbow | Fully supported | |
+| WalletConnect v2 | Fully supported | 400+ wallets |
+| Ledger | Fully supported | Via MetaMask integration |
+| Safe (Gnosis) | Partial | Requires multi-sig threshold |
+| Frame | Fully supported | |
+
+<Note>
+  All wallets must support **EIP-712 typed data signing**, which is standard for modern wallets. No special wallet features required.
+</Note>
+
+## Prerequisites
+
+Before starting, you'll need:
+
+<AccordionGroup>
+  <Accordion title="API Key (Server only)" icon="key">
+    Get an API key from the [Dashboard](https://facilitator.agentokratia.com) by:
+    1. Connecting your wallet via SIWE
+    2. Creating a new API key in the dashboard
+    3. Storing it securely (shown only once)
+
+    **Note:** Clients don't need an API key - only servers protecting endpoints.
+  </Accordion>
+  <Accordion title="Wallet Client" icon="wallet">
+    A viem `WalletClient` with an account and chain. Example setup:
+
+    ```typescript
+    // Browser (with wagmi)
+    import { useWalletClient } from 'wagmi';
+    const { data: walletClient } = useWalletClient();
+
+    // Node.js (with private key)
+    import { createWalletClient, http } from 'viem';
+    import { base } from 'viem/chains';
+    import { privateKeyToAccount } from 'viem/accounts';
+
+    const walletClient = createWalletClient({
+      account: privateKeyToAccount(process.env.PRIVATE_KEY),
+      chain: base,
+      transport: http(),
+    });
+    ```
+  </Accordion>
+  <Accordion title="USDC" icon="coins">
+    USDC on Base for payments. No approval needed - x402 uses ERC-3009 gasless signatures.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Exact Scheme Quickstart
+
+The `exact` scheme is standard x402 - one signature per request.
+
+### Client (exact)
+
+```typescript
+import { useWalletClient } from 'wagmi';
+import { wrapFetchWithPayment } from '@x402/fetch';
+import { x402Client } from '@x402/core/client';
+
+const { data: walletClient } = useWalletClient();
+
+if (walletClient) {
+  const x402 = new x402Client(walletClient);
+  const paidFetch = wrapFetchWithPayment(fetch, x402);
+
+  // User signs each request
+  const response = await paidFetch('https://api.example.com/premium');
+}
+```
+
+<Note>
+The `exact` scheme requires user signature per request - best for browser dApps where users approve each payment.
+</Note>
+
+### Server (exact)
+
+```typescript
+import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
+import { paymentMiddleware } from '@x402/express';
+
+const facilitator = new HTTPFacilitatorClient({
+  url: process.env.FACILITATOR_URL!,
+  createAuthHeaders: async () => ({
+    verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+    settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+    supported: {},
+  }),
+});
+
+const x402 = new x402ResourceServer(facilitator);
+
+app.use(paymentMiddleware({
+  'GET /api/premium': {
+    accepts: {
+      scheme: 'exact',
+      price: '$0.10',
+      network: 'eip155:8453',
+      payTo: process.env.PAYMENT_ADDRESS!,
+    },
+  },
+}, x402));
+
+app.get('/api/premium', (req, res) => {
+  res.json({ data: 'Premium content' });
+});
+```
+
+---
+
+## Escrow Scheme Quickstart
+
+The `escrow` scheme enables session-based payments - sign once, unlimited calls.
+
+### Client (escrow)
+
+<CodeGroup>
+
+```typescript Browser (wagmi)
+import { useWalletClient } from 'wagmi';
+import { createEscrowFetch } from '@agentokratia/x402-escrow/client';
+
+const { data: walletClient } = useWalletClient();
+
+if (walletClient) {
+  const { fetch: escrowFetch } = createEscrowFetch(walletClient, {
+    depositAmount: '10000000', // $10 USDC deposit
+    storage: 'localStorage',   // Persist sessions across reloads
+  });
+
+  // First call: signs once, creates session
+  const response1 = await escrowFetch('https://api.example.com/premium');
+
+  // Subsequent calls: instant, no signature needed
+  const response2 = await escrowFetch('https://api.example.com/premium');
+}
+```
+
+```typescript Node.js
+import { createWalletClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { base } from 'viem/chains';
+import { createEscrowFetch } from '@agentokratia/x402-escrow/client';
+
+const walletClient = createWalletClient({
+  account: privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`),
+  chain: base,
+  transport: http(),
+});
+
+const { fetch: escrowFetch } = createEscrowFetch(walletClient, {
+  depositAmount: '10000000', // $10 USDC deposit
+  storage: 'memory',         // In-memory for Node.js
+});
+
+// First call: signs once, creates session
+const response1 = await escrowFetch('https://api.example.com/premium');
+
+// Subsequent calls: instant, no signature needed
+const response2 = await escrowFetch('https://api.example.com/premium');
+```
+
+</CodeGroup>
+
+<Tip>
+**Sign once, pay forever:** Users sign a single ERC-3009 authorization, then make unlimited API calls with zero additional signatures or gas.
+</Tip>
+
+#### What Happens Automatically
+
+1. **First request** - Signs ERC-3009, creates session, stores `session.token`
+2. **Subsequent requests** - Uses stored token (instant, no signature)
+3. **Session expired** - Automatically creates new session
+4. **Insufficient balance** - Creates new session with fresh deposit
+
+#### Session Control
+
+```typescript
+// Force new session (e.g., when user wants fresh deposit)
+await escrowFetch(url, { session: 'new' });
+
+// Use specific session
+await escrowFetch(url, { session: 'session-id-here' });
+```
+
+### Server (escrow)
+
+```typescript
+import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
+import { paymentMiddleware } from '@x402/express';
+import { EscrowScheme } from '@agentokratia/x402-escrow/server';
+
+const facilitator = new HTTPFacilitatorClient({
+  url: process.env.FACILITATOR_URL!,
+  createAuthHeaders: async () => ({
+    verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+    settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+    supported: {},
+  }),
+});
+
+// Register escrow scheme
+const x402 = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new EscrowScheme());
+
+app.use(paymentMiddleware({
+  'GET /api/premium': {
+    accepts: {
+      scheme: 'escrow',
+      price: '$0.01',
+      network: 'eip155:8453',
+      payTo: process.env.PAYMENT_ADDRESS!,
+    },
+  },
+}, x402));
+
+app.get('/api/premium', (req, res) => {
+  res.json({ data: 'Premium content' });
+});
+```
+
+---
+
+## Accept Both Schemes
+
+Servers can accept both schemes, letting clients choose:
+
+```typescript
+const x402 = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new EscrowScheme());
+
+app.use(paymentMiddleware({
+  'GET /api/premium': {
+    accepts: [
+      { scheme: 'escrow', price: '$0.01', network: 'eip155:8453', payTo: '0x...' },
+      { scheme: 'exact', price: '$0.01', network: 'eip155:8453', payTo: '0x...' },
+    ],
+  },
+}, x402));
+```
+
+## Environment Variables
+
+```bash .env
+# Facilitator URL
+FACILITATOR_URL=https://facilitator.agentokratia.com
+
+# Your API key (from dashboard)
+X402_API_KEY=ak_live_...
+
+# Your receiving wallet address
+PAYMENT_ADDRESS=0xYourWalletAddress
+```
+
+## x402 Headers
+
+The protocol uses these HTTP headers (handled automatically by the SDK):
+
+| Header              | Direction       | Content                              |
+| ------------------- | --------------- | ------------------------------------ |
+| `PAYMENT-REQUIRED`  | Server → Client | Payment requirements (base64 JSON)   |
+| `PAYMENT-SIGNATURE` | Client → Server | Payment payload (base64 JSON)        |
+| `PAYMENT-RESPONSE`  | Server → Client | Settlement result (base64 JSON)      |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Payment Schemes" icon="code-compare" href="/concepts/schemes">
+    Deep dive into exact vs escrow schemes
+  </Card>
+  <Card title="Sessions" icon="clock" href="/concepts/sessions">
+    Learn how escrow sessions work
+  </Card>
+  <Card title="Client Guide" icon="laptop" href="/integration/client">
+    Full client SDK documentation
+  </Card>
+  <Card title="Server Guide" icon="server" href="/integration/server">
+    Full server integration guide
+  </Card>
+</CardGroup>

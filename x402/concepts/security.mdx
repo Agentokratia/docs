@@ -1,0 +1,150 @@
+---
+title: Security
+description: Security model and best practices for x402 escrow
+---
+
+# Security
+
+The x402 escrow system is designed with security as a primary concern. This page covers the security model and best practices.
+
+## Security Model
+
+### Session Token Security
+
+<Warning>
+  Session tokens are secrets. Treat them like API keys or passwords.
+</Warning>
+
+| Property | Implementation |
+| -------- | -------------- |
+| Generation | 256-bit cryptographically random |
+| Storage | bcrypt hash (cost factor 10) |
+| Transmission | HTTPS only, shown once |
+| Validation | Constant-time comparison |
+
+### ERC-3009 Authorization
+
+Escrow sessions use ERC-3009 `transferWithAuthorization`:
+
+- **Replay protection:** Nonces are derived from payment info hash
+- **Time-bounded:** `validAfter` and `validBefore` constraints
+- **Receiver-locked:** Authorization tied to specific receiver
+
+### Rate Limiting
+
+All endpoints are rate-limited:
+
+| Endpoint | Limit |
+| -------- | ----- |
+| `/api/verify`, `/api/settle` | 1000/min per API key |
+| Auth endpoints | 10/min per IP |
+| Session management | 100/min per user |
+| Reclaim operations | 10/min per wallet |
+
+## Attack Vectors & Mitigations
+
+### Session Token Theft
+
+**Risk:** Attacker obtains session token and drains balance
+
+**Mitigations:**
+- Tokens shown only once at creation
+- HTTPS required for all communications
+- Sessions can be voided by owner
+- Expiry limits exposure window
+
+### Replay Attacks
+
+**Risk:** Attacker replays valid payment payload
+
+**Mitigations:**
+- Each request has unique `requestId`
+- Facilitator tracks processed requests
+- Idempotency built into protocol
+
+### Authorization Expiry Racing
+
+**Risk:** Facilitator fails to capture before expiry
+
+**Mitigations:**
+- Sync capture when expiry < 30min
+- Cron job captures when expiry < 2h
+- Monitoring and alerts on pending amounts
+
+## Best Practices
+
+### For Server Operators
+
+<AccordionGroup>
+  <Accordion title="Secure API Key Storage" icon="key">
+    - Store API keys in environment variables
+    - Use secrets management (AWS Secrets Manager, Vault)
+    - Rotate keys periodically
+    - Never commit keys to version control
+  </Accordion>
+  <Accordion title="Verify Before Serving" icon="shield-check">
+    - Always verify payment before serving content
+    - Don't trust client-provided payment data
+    - Use the facilitator's verify endpoint
+  </Accordion>
+  <Accordion title="Handle Failures Gracefully" icon="triangle-exclamation">
+    - Implement retry logic for transient failures
+    - Return appropriate error messages
+    - Log all payment events for auditing
+  </Accordion>
+</AccordionGroup>
+
+### For Client Applications
+
+<AccordionGroup>
+  <Accordion title="Session Token Management" icon="database">
+    - Store tokens securely (encrypted storage)
+    - Clear tokens on logout
+    - Handle token expiry gracefully
+  </Accordion>
+  <Accordion title="HTTPS Enforcement" icon="lock">
+    - Only communicate over HTTPS
+    - Validate SSL certificates
+    - Implement certificate pinning for mobile
+  </Accordion>
+  <Accordion title="User Communication" icon="user">
+    - Show clear deposit amounts
+    - Display available balance
+    - Provide easy reclaim functionality
+  </Accordion>
+</AccordionGroup>
+
+## Error Codes
+
+| Code | Meaning | Action |
+| ---- | ------- | ------ |
+| `invalid_signature` | ERC-3009 signature failed | Retry with fresh signature |
+| `invalid_session_token` | Wrong session token | Use correct token or create new session |
+| `session_expired` | Past authorization expiry | Create new session |
+| `insufficient_balance` | Not enough balance | Top up or create new session |
+
+## Auditing
+
+<Note>
+  The x402 escrow smart contracts have been audited. Contact us for audit reports.
+</Note>
+
+### Contract Addresses
+
+<Warning>
+  **Currently Base Sepolia only.** The facilitator is currently deployed on Base Sepolia (testnet). Base Mainnet support coming soon.
+</Warning>
+
+| Network | Contract | Address |
+| ------- | -------- | ------- |
+| Base Sepolia | AuthCaptureEscrow | [`0xbDEa0d1BCc5966192b070fDF62ab4eF5B4420Cff`](https://sepolia.basescan.org/address/0xbDEa0d1BCc5966192b070fDF62ab4eF5B4420Cff) |
+| Base Sepolia | ERC3009 Collector | [`0x0E3dF9510De65469c4518d7843919C0B8c7a7757`](https://sepolia.basescan.org/address/0x0E3dF9510De65469c4518d7843919C0B8c7a7757) |
+| Base Sepolia | USDC | [`0x036CbD53842c5426634e7929541eC2318f3dCF7e`](https://sepolia.basescan.org/address/0x036CbD53842c5426634e7929541eC2318f3dCF7e) |
+
+<Accordion title="Base Mainnet addresses (coming soon)">
+  | Contract | Address |
+  | -------- | ------- |
+  | AuthCaptureEscrow | `0xbDEa0d1BCc5966192b070fDF62ab4eF5B4420Cff` |
+  | ERC3009 Collector | `0x0E3dF9510De65469c4518d7843919C0B8c7a7757` |
+  | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+</Accordion>

@@ -1,0 +1,285 @@
+---
+title: Troubleshooting
+description: Common errors and how to fix them
+---
+
+# Troubleshooting
+
+Solutions to common issues when integrating x402 escrow.
+
+## Client Errors
+
+### User rejected the signature
+
+**Symptom:** Error message contains "User rejected" or "User denied"
+
+**Cause:** User clicked "Reject" in their wallet when asked to sign
+
+**Solution:**
+```typescript
+try {
+  const response = await escrowFetch(url);
+} catch (err) {
+  if (err.message?.includes('User rejected') ||
+      err.message?.includes('User denied')) {
+    // User cancelled - show friendly message
+    showToast('Transaction cancelled. Try again when ready.');
+    return;
+  }
+  throw err; // Re-throw other errors
+}
+```
+
+---
+
+### session_expired
+
+**Symptom:** API returns `{ "error": "...", "reason": "session_expired" }`
+
+**Cause:** The session's `authorizationExpiry` timestamp has passed
+
+**Solution:** The SDK automatically creates a new session. If using manual mode:
+```typescript
+// Force new session
+await escrowFetch(url, { session: 'new' });
+```
+
+**Prevention:** Set appropriate session duration:
+```typescript
+const { fetch: escrowFetch } = createEscrowFetch(walletClient, {
+  sessionDuration: 7200, // 2 hours instead of default 1 hour
+});
+```
+
+---
+
+### insufficient_balance
+
+**Symptom:** API returns `{ "reason": "insufficient_balance" }`
+
+**Cause:** Session balance is less than the request amount
+
+**Solution:**
+```typescript
+// Option 1: Create new session with higher deposit
+await escrowFetch(url, { session: 'new' });
+
+// Option 2: Check balance before request
+const sessions = scheme.sessions.getAllForReceiver(receiverAddress);
+const activeSession = sessions.find(s => s.status === 'active');
+if (BigInt(activeSession?.balance || '0') < BigInt(requiredAmount)) {
+  // Prompt user to top up
+}
+```
+
+---
+
+### invalid_session_token
+
+**Symptom:** API returns `{ "reason": "invalid_session_token" }`
+
+**Cause:**
+- Session token is corrupted
+- Using wrong token for session ID
+- localStorage was cleared
+
+**Solution:**
+```typescript
+// Clear stored sessions and create fresh
+if (typeof window !== 'undefined') {
+  localStorage.removeItem('x402-sessions');
+}
+await escrowFetch(url, { session: 'new' });
+```
+
+---
+
+### Wrong network
+
+**Symptom:** Error about network mismatch or chain ID
+
+**Cause:** Wallet is on different network than API expects
+
+**Solution:**
+```typescript
+import { base, baseSepolia } from 'viem/chains';
+
+// Check and switch network before making request
+const currentChainId = await walletClient.getChainId();
+const requiredChainId = base.id; // or baseSepolia.id for testnet
+
+if (currentChainId !== requiredChainId) {
+  await walletClient.switchChain({ id: requiredChainId });
+}
+```
+
+---
+
+### Insufficient USDC balance
+
+**Symptom:** Transaction fails or signature rejected
+
+**Cause:** Wallet doesn't have enough USDC for deposit
+
+**Solution:**
+```typescript
+import { formatUnits, erc20Abi } from 'viem';
+
+// Check balance before creating session
+const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // Base
+
+const balance = await publicClient.readContract({
+  address: USDC_ADDRESS,
+  abi: erc20Abi,
+  functionName: 'balanceOf',
+  args: [walletClient.account.address],
+});
+
+const depositAmount = BigInt('10000000'); // $10
+if (balance < depositAmount) {
+  const needed = formatUnits(depositAmount - balance, 6);
+  alert(`Need ${needed} more USDC`);
+}
+```
+
+---
+
+## Server Errors
+
+### 401 Unauthorized
+
+**Symptom:** All requests return 401
+
+**Cause:** Invalid or missing API key
+
+**Solution:**
+1. Check API key is set in environment:
+   ```bash
+   echo $X402_API_KEY
+   ```
+2. Verify key format: should start with `ak_live_` or `ak_test_`
+3. Ensure Bearer prefix is included:
+   ```typescript
+   Authorization: `Bearer ${process.env.X402_API_KEY}`
+   ```
+
+---
+
+### 503 Service Unavailable
+
+**Symptom:** Facilitator requests fail with 503
+
+**Cause:** Facilitator service is temporarily unavailable
+
+**Solution:**
+```typescript
+// Add retry logic
+const x402 = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new EscrowScheme())
+  .onError(async (ctx, error) => {
+    if (error.status === 503) {
+      // Log and alert
+      console.error('Facilitator unavailable:', error);
+      // Optionally: serve request for free during outage
+      // or return cached response
+    }
+  });
+```
+
+<Note>
+  User funds are safe during outages. They're held in the on-chain escrow contract, not by the facilitator.
+</Note>
+
+---
+
+### 429 Rate Limited
+
+**Symptom:** Requests return 429 Too Many Requests
+
+**Cause:** Exceeded rate limit (1000/min per API key)
+
+**Solution:**
+1. Check for request loops in your code
+2. Implement client-side rate limiting
+3. Contact support for higher limits if legitimately needed
+
+---
+
+### Payment not detected
+
+**Symptom:** 402 returned even after user paid
+
+**Cause:** Payment header not being forwarded
+
+**Solution:** Ensure headers are passed through proxies:
+```typescript
+// Nginx
+proxy_pass_request_headers on;
+
+// Express proxy
+app.use('/api', proxy({
+  target: 'http://backend',
+  changeOrigin: true,
+  onProxyReq: (proxyReq, req) => {
+    // Forward payment headers
+    if (req.headers['payment-signature']) {
+      proxyReq.setHeader('payment-signature', req.headers['payment-signature']);
+    }
+  },
+}));
+```
+
+---
+
+## Debugging Tips
+
+### Enable debug logging
+
+```typescript
+// Client-side
+const { fetch: escrowFetch, x402 } = createEscrowFetch(walletClient);
+
+x402.onBeforePaymentCreation(async (ctx) => {
+  console.log('[x402] Payment required:', ctx.paymentRequirements);
+});
+
+x402.onAfterPaymentCreation(async (ctx) => {
+  console.log('[x402] Payment created:', ctx.paymentPayload);
+});
+```
+
+### Check session state
+
+```typescript
+// Inspect stored sessions
+const { scheme } = createEscrowFetch(walletClient, { storage: 'localStorage' });
+
+const allSessions = scheme.sessions.getAllForReceiver('0xReceiverAddress');
+console.log('Sessions:', allSessions.map(s => ({
+  id: s.sessionId,
+  balance: s.balance,
+  status: s.status,
+  expiresAt: new Date(s.authorizationExpiry * 1000),
+})));
+```
+
+### Inspect HTTP headers
+
+```bash
+# See what headers are being sent
+curl -v https://api.example.com/protected-endpoint \
+  -H "Payment-Signature: base64encodedpayload..."
+```
+
+---
+
+## Still Stuck?
+
+<CardGroup cols={2}>
+  <Card title="FAQ" icon="circle-question" href="/faq">
+    Check frequently asked questions
+  </Card>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/agentokratia/x402-escrow/issues">
+    Search or open an issue
+  </Card>
+</CardGroup>

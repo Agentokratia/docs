@@ -1,0 +1,87 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Agentokratia",
+  "logo": {
+    "dark": "/images/logo-dark.svg",
+    "light": "/images/logo-light.svg"
+  },
+  "favicon": "/images/favicon.svg",
+  "colors": {
+    "primary": "#1A1A1A",
+    "light": "#6B6B6B",
+    "dark": "#1A1A1A",
+    "background": {
+      "light": "#FAFAF8",
+      "dark": "#1A1A1A"
+    },
+    "anchors": {
+      "from": "#1A1A1A",
+      "to": "#6B6B6B"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/agentokratia"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Dashboard",
+    "url": "https://app.agentokratia.com"
+  },
+  "tabs": [
+    {
+      "name": "x402 Facilitator",
+      "url": "x402"
+    },
+    {
+      "name": "Marketplace",
+      "url": "marketplace"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": ["x402/introduction", "x402/quickstart", "x402/getting-api-key"]
+    },
+    {
+      "group": "Concepts",
+      "pages": ["x402/concepts/schemes", "x402/concepts/sessions", "x402/concepts/settlement", "x402/concepts/security"]
+    },
+    {
+      "group": "Integration",
+      "pages": ["x402/integration/client", "x402/integration/server"]
+    },
+    {
+      "group": "Resources",
+      "pages": ["x402/pricing", "x402/troubleshooting", "x402/faq"]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "x402/api-reference/overview",
+        "x402/api-reference/supported",
+        "x402/api-reference/verify",
+        "x402/api-reference/settle"
+      ]
+    },
+    {
+      "group": "Marketplace",
+      "pages": ["marketplace/introduction"]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/agentokratia",
+    "twitter": "https://twitter.com/agentokratia"
+  },
+  "api": {
+    "baseUrl": "https://facilitator.agentokratia.com"
+  },
+  "openapi": "x402/openapi.json",
+  "llms": {
+    "enabled": true,
+    "full": {
+      "enabled": true
+    }
+  }
+}
