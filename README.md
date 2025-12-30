@@ -1,55 +1,56 @@
-# x402 Escrow Facilitator
+# Agentokratia Documentation
 
-> Session-based payments for high-frequency APIs using x402 v2
+Official documentation for Agentokratia products.
 
-## What It Does
+**Live docs:** [docs.agentokratia.com](https://docs.agentokratia.com)
 
-- **Sign once, pay many** - Create a session with one signature, make unlimited API calls
-- **Zero per-request gas** - Session usage is off-chain, instant
-- **100% reclaimable** - Unused funds can be reclaimed anytime
-- **x402 v2 compatible** - Works with the standard x402 protocol
+## Products
 
-## Supported Schemes
+| Product | Description | Status |
+|---------|-------------|--------|
+| [x402 Facilitator](./x402) | Payment verification and settlement for x402 protocol | Live |
+| [Agent Marketplace](./marketplace) | Deploy, discover, and monetize AI agents | Coming Soon |
 
-| Scheme   | Description                                  |
-| -------- | -------------------------------------------- |
-| `exact`  | Direct ERC-3009 payment (1 tx per request)   |
-| `escrow` | Session-based (1 tx to create, 0 tx per use) |
+## Development
 
-## How It Works
+### Prerequisites
 
-```
-1. Client requests protected resource
-2. Server returns 402 + payment requirements
-3. Client signs ERC-3009 → creates session (gets session.token)
-4. Subsequent requests use session.token (instant, no gas)
-5. User can reclaim unused funds anytime
-```
+- Node.js 18+
+- [Mintlify CLI](https://www.npmjs.com/package/mintlify)
 
-## Documentation
-
-| Doc                             | Description                        |
-| ------------------------------- | ---------------------------------- |
-| [API Reference](./API.md)       | All endpoints, payloads, responses |
-| [Integration Guide](./GUIDE.md) | Client + server integration        |
-| [Protocol Spec](./SPEC.md)      | Payload structures, security model |
-
-## Quick Start
+### Run locally
 
 ```bash
-npm install @x402/core @agentokratia/x402-escrow
+npx mintlify dev
 ```
 
-**Server** - Protect an endpoint:
+Docs will be available at `http://localhost:3000`
 
-```typescript
-app.get('/api/premium', requirePayment('10000', '0xYourAddress'), handler);
+### Project structure
+
+```
+├── mint.json           # Mintlify configuration
+├── x402/               # x402 Facilitator docs
+│   ├── introduction.mdx
+│   ├── quickstart.mdx
+│   ├── api-reference/
+│   ├── concepts/
+│   └── integration/
+├── marketplace/        # Agent Marketplace docs
+│   └── introduction.mdx
+└── images/             # Logos and assets
 ```
 
-**Client** - Pay for access:
+## Contributing
 
-```typescript
-const response = await escrowFetch('https://api.example.com/premium');
-```
+Contributions are welcome! Please:
 
-See [Integration Guide](./GUIDE.md) for full examples.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/improvement`)
+3. Commit your changes (`git commit -m 'Add improvement'`)
+4. Push to the branch (`git push origin feature/improvement`)
+5. Open a Pull Request
+
+## License
+
+[MIT](./LICENSE)
