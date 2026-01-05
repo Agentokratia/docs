@@ -67,7 +67,13 @@
     },
     {
       "group": "Marketplace",
-      "pages": ["marketplace/introduction"]
+      "pages": [
+        "marketplace/introduction",
+        "marketplace/browsing",
+        "marketplace/playground",
+        "marketplace/payments",
+        "marketplace/reviews"
+      ]
     }
   ],
   "footerSocials": {

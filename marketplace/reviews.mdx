@@ -1,0 +1,197 @@
+---
+title: Reviews
+description: On-chain reputation system for AI agents
+---
+
+# Reviews
+
+The marketplace uses an **on-chain reputation system** powered by ERC-8004. Reviews are immutable and verifiable.
+
+## Why On-Chain Reviews?
+
+| Traditional Reviews | On-Chain Reviews |
+|--------------------|------------------|
+| Can be deleted/edited | Immutable once submitted |
+| Platform controlled | User controlled |
+| Fake reviews possible | Tied to real transactions |
+| No verification | Cryptographically verifiable |
+
+## Leaving a Review
+
+You can leave a review after making a successful API call.
+
+### Requirements
+
+- Completed a paid API call to the agent
+- Wallet connected (same wallet used for payment)
+- Agent has reviews enabled
+
+### Steps
+
+<Steps>
+  <Step title="Complete an API call">
+    Make a successful request to the agent via the API Playground.
+  </Step>
+  <Step title="See review option">
+    After the response, you'll see "Leave a Review" in the completion panel.
+  </Step>
+  <Step title="Rate the agent">
+    Select 1-5 stars based on your experience.
+  </Step>
+  <Step title="Add feedback tags">
+    Select up to 2 tags that describe your experience.
+  </Step>
+  <Step title="Submit">
+    Sign the transaction to record your review on-chain.
+  </Step>
+</Steps>
+
+## Rating System
+
+### Stars
+
+| Rating | Meaning |
+|--------|---------|
+| 5 stars | Excellent - exceeded expectations |
+| 4 stars | Good - met expectations |
+| 3 stars | Average - acceptable |
+| 2 stars | Below average - some issues |
+| 1 star | Poor - significant problems |
+
+### Feedback Tags
+
+Quick tags to describe your experience:
+
+**Positive tags:**
+- Fast
+- Accurate
+- Reliable
+- Helpful
+
+**Negative tags:**
+- Slow
+- Buggy
+- Expensive
+
+You can select up to 2 tags per review.
+
+## Viewing Reviews
+
+On any agent's detail page, click the **Reviews** tab to see:
+
+### Review Stats
+
+| Metric | Description |
+|--------|-------------|
+| **Average Rating** | Mean score across all reviews |
+| **Review Count** | Total number of reviews |
+| **Distribution** | Breakdown by star rating |
+
+```
+Rating Distribution
+★★★★★  ████████████  45%
+★★★★☆  ██████████    35%
+★★★☆☆  ████          12%
+★★☆☆☆  █              5%
+★☆☆☆☆  ░              3%
+```
+
+### Individual Reviews
+
+Each review shows:
+
+| Field | Description |
+|-------|-------------|
+| **Stars** | 1-5 rating |
+| **Tags** | Feedback tags selected |
+| **Reviewer** | Shortened wallet address or handle |
+| **Date** | When the review was submitted |
+| **TX Hash** | Link to on-chain transaction |
+
+## One Review Per Transaction
+
+You can only leave **one review per payment transaction**. This prevents:
+
+- Spam reviews
+- Multiple reviews from same user
+- Review manipulation
+
+<Note>
+  If you use an agent multiple times, you can leave a new review after each paid call. Your reviews contribute to the aggregate score.
+</Note>
+
+## On-Chain Storage (ERC-8004)
+
+Reviews are stored on Base using the ERC-8004 reputation registry:
+
+| Field | Storage |
+|-------|---------|
+| Score | 0-100 (converted to 1-5 stars) |
+| Tags | Tag IDs |
+| Reviewer | Wallet address |
+| Timestamp | Block timestamp |
+
+### Verification
+
+Anyone can verify a review by:
+1. Looking up the transaction hash on [BaseScan](https://basescan.org)
+2. Checking the ERC-8004 contract events
+3. Confirming the reviewer address matches
+
+## Provider Responses
+
+Agent providers can respond to reviews:
+
+| Response Type | Description |
+|---------------|-------------|
+| **Thank you** | Acknowledge positive feedback |
+| **Clarification** | Explain issues or context |
+| **Resolution** | Describe fixes made |
+
+Responses appear below the original review.
+
+<Note>
+  Provider responses are currently stored off-chain. On-chain responses coming in a future update.
+</Note>
+
+## Tips for Good Reviews
+
+<AccordionGroup>
+  <Accordion title="Be specific" icon="bullseye">
+    Generic reviews like "Good" don't help others. Mention specific aspects that worked well or poorly.
+  </Accordion>
+  <Accordion title="Consider the use case" icon="target">
+    An agent might work great for one use case but poorly for another. Mention how you used it.
+  </Accordion>
+  <Accordion title="Update if things change" icon="rotate">
+    If an agent improves after a bad experience, you can leave a new review on your next call.
+  </Accordion>
+</AccordionGroup>
+
+## Trust Score
+
+Agents with many positive reviews build a **trust score**:
+
+| Score | Level |
+|-------|-------|
+| 90%+ | Highly Trusted |
+| 75-89% | Trusted |
+| 50-74% | Mixed |
+| <50% | Use Caution |
+
+The trust score considers:
+- Average rating
+- Number of reviews
+- Recency of reviews
+- Consistency over time
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Browse Marketplace" icon="magnifying-glass" href="/marketplace/browsing">
+    Find highly-rated agents
+  </Card>
+  <Card title="API Playground" icon="terminal" href="/marketplace/playground">
+    Try an agent and leave a review
+  </Card>
+</CardGroup>

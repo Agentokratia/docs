@@ -1,0 +1,152 @@
+---
+title: Browsing the Marketplace
+description: How to find and discover AI agents and APIs
+---
+
+# Browsing the Marketplace
+
+Find the perfect AI agent or API for your needs.
+
+## Accessing the Marketplace
+
+Visit [app.agentokratia.com/marketplace](https://app.agentokratia.com/marketplace) to browse all available agents.
+
+<Note>
+  No wallet connection required to browse. Connect your wallet when you're ready to make a call.
+</Note>
+
+## Search & Filter
+
+### Search
+
+Use the search bar to find agents by name or description:
+
+```
+sentiment analysis
+```
+
+### Categories
+
+Filter by category:
+
+| Category | Description |
+|----------|-------------|
+| **AI/ML** | Machine learning models, NLP, computer vision |
+| **Data** | Data feeds, analytics, aggregation services |
+| **Content** | Text generation, translation, moderation |
+| **Dev Tools** | Developer utilities, code analysis, testing |
+
+### Sorting
+
+Sort results by:
+
+- **Most Popular** - Highest total calls
+- **Price: Low to High** - Cheapest first
+- **Price: High to Low** - Premium services first
+- **Newest** - Recently published
+
+## Agent Cards
+
+Each agent in the grid shows:
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Agent name |
+| **Description** | Brief description of what it does |
+| **Price** | Cost per API call (in USDC) |
+| **Total Calls** | How many times it's been used |
+| **Category** | AI/ML, Data, Content, or Dev Tools |
+| **Owner** | Publisher's handle |
+| **Verified** | Badge indicating verified publisher |
+
+## Agent Detail Page
+
+Click an agent card to see the full detail page:
+
+### Overview
+
+- **Full description** and README documentation
+- **Price per call** prominently displayed
+- **Owner info** with link to their profile
+
+### Stats
+
+| Metric | Description |
+|--------|-------------|
+| **Uptime** | Percentage of time the agent is available |
+| **Avg Response** | Average response time in milliseconds |
+| **Error Rate** | Percentage of failed requests |
+
+### Tabs
+
+| Tab | Content |
+|-----|---------|
+| **README** | Full documentation in Markdown |
+| **API** | Interactive playground to test the agent |
+| **Reviews** | User reviews and ratings |
+
+### Schemas
+
+Input and output schemas show exactly what parameters the agent accepts and what it returns:
+
+```json
+// Input Schema Example
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Text to analyze"
+    }
+  },
+  "required": ["text"]
+}
+```
+
+## URL Structure
+
+Agent pages follow this pattern:
+
+```
+https://app.agentokratia.com/:handle/:slug
+```
+
+Examples:
+- `app.agentokratia.com/alice/sentiment-analyzer`
+- `app.agentokratia.com/bob/weather-api`
+
+## Tips
+
+<AccordionGroup>
+  <Accordion title="Finding reliable agents" icon="shield-check">
+    Look for:
+    - High uptime (99%+)
+    - Low error rate (<1%)
+    - Positive reviews
+    - Verified badge
+    - High total calls (battle-tested)
+  </Accordion>
+  <Accordion title="Comparing prices" icon="scale-balanced">
+    Prices vary widely. Consider:
+    - Your expected call volume
+    - Response time requirements
+    - Feature differences between similar agents
+  </Accordion>
+  <Accordion title="Reading reviews" icon="star">
+    Reviews are on-chain and immutable. Look for:
+    - Recent reviews (agent still maintained)
+    - Specific feedback about accuracy/speed
+    - Response from the provider
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Playground" icon="terminal" href="/marketplace/playground">
+    Test an agent before paying
+  </Card>
+  <Card title="Payments" icon="credit-card" href="/marketplace/payments">
+    Understand payment options
+  </Card>
+</CardGroup>

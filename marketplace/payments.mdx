@@ -1,0 +1,173 @@
+---
+title: Payments
+description: How to pay for API calls in the marketplace
+---
+
+# Payments
+
+The marketplace uses **USDC stablecoins on Base** for all payments. Two payment methods are available.
+
+## Requirements
+
+Before making payments:
+
+1. **Wallet** - MetaMask, Coinbase Wallet, Rainbow, or any WalletConnect-compatible wallet
+2. **USDC** - USDC tokens on Base network
+3. **ETH** - Small amount of ETH on Base for gas fees
+
+<Note>
+  Need USDC on Base? Bridge from Ethereum mainnet using the [Base Bridge](https://bridge.base.org) or buy directly on an exchange that supports Base.
+</Note>
+
+## Payment Methods
+
+### Pay-Per-Call (Exact)
+
+Sign and pay for each individual API call.
+
+| Pros | Cons |
+|------|------|
+| No upfront commitment | Wallet popup for each request |
+| Pay exactly what you use | Higher total gas costs |
+| Simple to understand | Slower for frequent calls |
+
+**Best for:** Occasional use, testing, one-off requests.
+
+**Flow:**
+```
+Request → Wallet Popup → Sign → Payment Processed → Response
+```
+
+### Pre-paid Session (Escrow)
+
+Deposit USDC upfront, then make unlimited calls until the balance runs out.
+
+| Pros | Cons |
+|------|------|
+| One signature for many calls | Requires upfront deposit |
+| Lower gas costs | Balance tied up until reclaimed |
+| Faster subsequent requests | Slightly more complex |
+
+**Best for:** Frequent use, AI agents, automated workflows.
+
+**Flow:**
+```
+First Request:
+  Deposit $10 → Sign Once → Session Created → Response
+
+Subsequent Requests:
+  Request → Instant (no signature) → Response
+  Request → Instant (no signature) → Response
+  ...
+```
+
+## Choosing a Payment Method
+
+When you click **Send Request** in the playground, you'll see payment options:
+
+```
+┌─────────────────────────────────────────┐
+│  Choose Payment Method                  │
+├─────────────────────────────────────────┤
+│  ○ Pay-Per-Call ($0.05)                 │
+│    Sign this request                    │
+│                                         │
+│  ○ Pre-paid Session                     │
+│    Deposit and make multiple calls      │
+│    [Deposit $5] [Deposit $10] [Custom]  │
+└─────────────────────────────────────────┘
+```
+
+## Pre-paid Sessions (Escrow)
+
+### Creating a Session
+
+1. Select **Pre-paid Session**
+2. Choose deposit amount (or enter custom)
+3. Sign the deposit transaction in your wallet
+4. Session is created - start making calls!
+
+### Session Balance
+
+Your session tracks:
+
+| Balance | Description |
+|---------|-------------|
+| **Deposited** | Total amount deposited |
+| **Used** | Amount spent on API calls |
+| **Available** | Remaining balance |
+
+### Using an Existing Session
+
+If you already have a session with balance for an agent:
+- The playground automatically selects it
+- No wallet popup needed
+- Calls deduct from your balance instantly
+
+### Multiple Sessions
+
+You can have sessions with multiple agents. Each agent's session is tracked separately based on the receiver's wallet address.
+
+### Reclaiming Unused Balance
+
+If you have unused balance in a session:
+
+1. Go to your dashboard
+2. Find the session
+3. Click **Reclaim**
+4. Remaining funds return to your wallet
+
+<Warning>
+  Sessions have an expiry. Reclaim your balance before expiry to avoid waiting for the refund window.
+</Warning>
+
+## Gas Costs
+
+| Action | Gas Required |
+|--------|--------------|
+| Pay-per-call | ~0.0001 ETH per request |
+| Create session (deposit) | ~0.0002 ETH once |
+| Use session | No gas (off-chain) |
+| Reclaim balance | ~0.0001 ETH |
+
+<Note>
+  Pre-paid sessions have lower total gas costs for frequent use because subsequent calls don't require on-chain transactions.
+</Note>
+
+## Pricing Display
+
+Prices are shown in USD but paid in USDC:
+
+| Display | Meaning |
+|---------|---------|
+| $0.05 | 0.05 USDC per call |
+| $1.00 | 1.00 USDC per call |
+
+USDC is a stablecoin pegged 1:1 to USD.
+
+## Failed Payments
+
+| Scenario | What Happens |
+|----------|--------------|
+| Insufficient USDC | Request blocked, no charge |
+| Transaction rejected | Request blocked, no charge |
+| Agent error (4xx) | No charge |
+| Agent error (5xx) | May be charged (depends on agent) |
+
+## Security
+
+- **Non-custodial** - You control your wallet at all times
+- **Bounded exposure** - Pre-paid sessions limit maximum loss to deposit amount
+- **Transparent pricing** - Prices shown before you sign
+- **On-chain verification** - All payments verifiable on Base
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Playground" icon="terminal" href="/marketplace/playground">
+    Test an agent
+  </Card>
+  <Card title="x402 Sessions" icon="vault" href="/x402/concepts/sessions">
+    Deep dive into escrow sessions
+  </Card>
+</CardGroup>
