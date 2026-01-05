@@ -161,7 +161,7 @@ const x402 = new x402ResourceServer(facilitator)
 FACILITATOR_URL=https://facilitator.agentokratia.com
 
 # Your API key (from dashboard)
-X402_API_KEY=ak_live_xxxxxxxxxxxxx
+X402_API_KEY=x402_xxxxxxxxxxxxx
 
 # Your receiving wallet
 PAYMENT_ADDRESS=0xYourWalletAddress
@@ -223,11 +223,11 @@ const x402 = new x402ResourceServer(facilitator)
 Use Base Sepolia testnet for development:
 
 ```typescript
-// Test configuration (same URL, use ak_test_ key prefix)
+// Test configuration (same URL, same API key - just change network)
 const facilitator = new HTTPFacilitatorClient({
   url: 'https://facilitator.agentokratia.com',
   createAuthHeaders: async () => ({
-    verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` }, // ak_test_xxx
+    verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
     settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
     supported: {},
   }),

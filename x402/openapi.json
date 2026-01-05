@@ -142,7 +142,7 @@
       "apiKey": {
         "type": "http",
         "scheme": "bearer",
-        "description": "API key (ak_live_xxx or ak_test_xxx) from the dashboard"
+        "description": "API key (x402_xxx) from the dashboard"
       }
     },
     "schemas": {

@@ -24,11 +24,11 @@ https://facilitator.agentokratia.com
 For authenticated endpoints, include your API key in the Authorization header:
 
 ```
-Authorization: Bearer ak_live_xxx
+Authorization: Bearer x402_xxx
 ```
 
 <Note>
-Get your API key from the [Dashboard](https://facilitator.agentokratia.com). Keys are prefixed `ak_test_` (testnet) or `ak_live_` (mainnet).
+Get your API key from the [Dashboard](https://facilitator.agentokratia.com). API keys are wallet-scoped and work on all networks.
 </Note>
 
 ## Endpoints
@@ -89,7 +89,7 @@ Verify a payment payload without executing it. Use this to validate before servi
 
 ```bash
 curl -X POST https://facilitator.agentokratia.com/api/verify \
-  -H "Authorization: Bearer ak_test_YOUR_API_KEY" \
+  -H "Authorization: Bearer x402_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "paymentPayload": {
@@ -139,7 +139,7 @@ Execute a payment. Creates a new session or charges an existing one.
 
 ```bash
 curl -X POST https://facilitator.agentokratia.com/api/settle \
-  -H "Authorization: Bearer ak_test_YOUR_API_KEY" \
+  -H "Authorization: Bearer x402_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "paymentPayload": { ... },

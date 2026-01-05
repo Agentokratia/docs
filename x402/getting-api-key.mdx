@@ -16,7 +16,7 @@ API keys are required for **servers** that want to protect endpoints with x402 p
 Visit the facilitator dashboard: [facilitator.agentokratia.com](https://facilitator.agentokratia.com)
 
 <Note>
-  The same facilitator URL handles both Base Mainnet and Base Sepolia. Your API key prefix (`ak_live_` or `ak_test_`) determines which network you're using.
+  The same facilitator URL handles both Base Mainnet and Base Sepolia. API keys are **wallet-scoped** (not network-specific) - you use the same key for all networks. Sessions are created per-network.
 </Note>
 
 ## Step 2: Connect Your Wallet
@@ -63,7 +63,7 @@ After signing in:
 Your API key will be displayed **once**:
 
 ```
-ak_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+x402_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 <Warning>
@@ -80,11 +80,8 @@ Store your key securely:
 ```bash .env
 FACILITATOR_URL=https://facilitator.agentokratia.com
 
-# Use ak_live_ for production (Base Mainnet)
-X402_API_KEY=ak_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# Or ak_test_ for development (Base Sepolia)
-X402_API_KEY=ak_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# Your API key (works on all networks)
+X402_API_KEY=x402_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 Then in your code:
@@ -100,12 +97,13 @@ const facilitator = new HTTPFacilitatorClient({
 });
 ```
 
-## Key Types
+## API Key Scope
 
-| Prefix | Environment | Use For |
-|--------|-------------|---------|
-| `ak_live_` | Production | Real payments on Base Mainnet |
-| `ak_test_` | Testnet | Testing on Base Sepolia |
+| Scope | Description |
+|-------|-------------|
+| **Wallet** | API keys are tied to your wallet address |
+| **All Networks** | Same key works on Base Mainnet and Base Sepolia |
+| **Sessions** | Sessions are created per-network (each session lives on one chain) |
 
 ## Rate Limits
 

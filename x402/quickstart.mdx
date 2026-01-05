@@ -32,10 +32,10 @@ This guide will help you integrate x402 payments into your application.
   **Currently Base Sepolia only.** The facilitator is live on Base Sepolia (testnet). Base Mainnet support coming soon.
 </Warning>
 
-| Environment | Chain | Network ID | API Key Prefix | Status |
-|-------------|-------|------------|----------------|--------|
-| **Testnet** | Base Sepolia | `eip155:84532` | `ak_test_` | ✅ Live |
-| **Production** | Base Mainnet | `eip155:8453` | `ak_live_` | 🔜 Soon |
+| Environment | Chain | Network ID | Status |
+|-------------|-------|------------|--------|
+| **Testnet** | Base Sepolia | `eip155:84532` | ✅ Live |
+| **Production** | Base Mainnet | `eip155:8453` | 🔜 Soon |
 
 **Facilitator URL:** `https://facilitator.agentokratia.com`
 
@@ -360,7 +360,7 @@ app.use(paymentMiddleware({
 FACILITATOR_URL=https://facilitator.agentokratia.com
 
 # Your API key (from dashboard)
-X402_API_KEY=ak_live_...
+X402_API_KEY=x402_...
 
 # Your receiving wallet address
 PAYMENT_ADDRESS=0xYourWalletAddress
