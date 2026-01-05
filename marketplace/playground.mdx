@@ -10,62 +10,43 @@ The API Playground lets you test any agent with real parameters and see actual r
 ## Overview
 
 ```mermaid
-flowchart TB
-    A[Open Playground] --> B[Fill Parameters]
-    B --> C[Click Send Request]
-    C --> D{First Request}
-    D --> E[402 Payment Required]
-    E --> F{Choose Payment Method}
-    F -->|Pay-Per-Call| G[Sign Transaction]
-    F -->|Pre-paid Session| H[Deposit USDC]
-    G --> I[Get Response]
-    H --> J[Get Session Token]
-    J --> K[Auto-retry Request]
-    K --> I
-    I --> L{Happy with result?}
-    L -->|Yes| M[Leave Review]
-    L -->|No| N[Try Different Agent]
+sequenceDiagram
+    participant You
+    participant Playground
+    participant Agent
+
+    You->>Playground: Fill parameters
+    Playground->>Agent: Send request
+    Agent-->>Playground: 402 Payment Required
+    You->>Playground: Choose payment method
+    You->>Playground: Sign/deposit
+    Playground->>Agent: Retry with payment
+    Agent-->>You: Response
 ```
 
 ## Accessing the Playground
 
 1. Navigate to any agent's detail page
 2. Click **"Try Agent"** button in the sidebar
-3. Or click the **API** tab and select **"Test"**
+3. Or click the **API** tab
 
 <Note>
   You must connect a wallet with USDC on Base to make paid calls.
 </Note>
 
-## Interface Layout
+## Interface Components
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  POST /api/v1/call/alice/sentiment-analyzer                 │
-├─────────────────────────────────────────────────────────────┤
-│  Tabs: [Parameters] [Headers] [Request Preview]             │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  text *                                                     │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ This product is amazing! Highly recommended.        │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  language (optional)                                        │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ en                                                   │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│  [Send Request]                            Price: $0.05     │
-└─────────────────────────────────────────────────────────────┘
-```
+The playground interface consists of three main sections:
 
-## Tabs
+### Input Tabs
 
-### Parameters Tab
+| Tab | Purpose |
+|-----|---------|
+| **Parameters** | Input fields generated from the agent's JSON Schema |
+| **Headers** | Custom HTTP headers (if required by the agent) |
+| **Request Preview** | View the exact JSON body before sending |
 
-Input fields auto-generated from the agent's JSON Schema:
+### Parameter Types
 
 | Schema Type | Input Control |
 |-------------|---------------|
@@ -76,192 +57,147 @@ Input fields auto-generated from the agent's JSON Schema:
 | `object` | JSON object editor |
 | `enum` | Dropdown select |
 
-Required fields are marked with asterisk (*).
-
-### Headers Tab
-
-Add custom HTTP headers if the agent requires them:
-
-```
-X-Custom-Header: my-value
-Authorization: Bearer external-token
-```
+Required fields are marked with an asterisk (*).
 
 <Warning>
   Payment headers are handled automatically. Don't manually add x402 headers.
 </Warning>
 
-### Request Preview Tab
+---
 
-See the exact JSON body that will be sent:
+## Making a Request
 
-```json
-{
-  "text": "This product is amazing! Highly recommended.",
-  "language": "en"
-}
+<Steps>
+  <Step title="Fill Parameters">
+    Enter values for all required parameters. The playground validates against the JSON Schema.
+  </Step>
+  <Step title="Click Send Request">
+    The playground probes the agent for payment requirements.
+  </Step>
+  <Step title="Choose Payment Method">
+    Select pay-per-call or use a pre-paid session.
+  </Step>
+  <Step title="Confirm Payment">
+    Sign the transaction in your wallet.
+  </Step>
+  <Step title="View Response">
+    See the response data, status code, and payment receipt.
+  </Step>
+</Steps>
+
+### Payment Probe Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Playground
+    participant Agent
+
+    User->>Playground: Click "Send Request"
+    Playground->>Agent: POST /api/v1/call (no payment)
+    Agent-->>Playground: 402 Payment Required
+    Note over Playground: Extract payment options
+    Playground-->>User: Show payment selection
 ```
 
 ---
 
-## Making Your First Request
+## Payment Options
 
-### Step 1: Fill Parameters
+After the initial probe, you'll choose how to pay:
 
-Enter values for all required parameters. The playground validates against the JSON Schema.
+### Option 1: Pay-Per-Call
 
-### Step 2: Click Send Request
+- Sign each request individually
+- Wallet popup appears for each call
+- Best for: Testing, occasional use
 
-The playground makes an initial request to probe payment requirements.
+### Option 2: Pre-paid Session
+
+- Deposit USDC once
+- Make unlimited calls until balance depletes
+- Auto-selects existing sessions with sufficient balance
+- Best for: Frequent use, automated workflows
 
 ```mermaid
-sequenceDiagram
-    participant You
-    participant Playground
-    participant Agent
+flowchart LR
+    subgraph "Pay-Per-Call"
+        A1[Request] --> A2[Sign] --> A3[Response]
+    end
 
-    You->>Playground: Click "Send Request"
-    Playground->>Agent: POST /api/v1/call (no payment)
-    Agent-->>Playground: 402 Payment Required
-    Note over Playground: Extract payment options
-    Playground-->>You: Show payment selection
-```
-
-### Step 3: Choose Payment Method
-
-You'll see available payment options:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Choose Payment Method                                      │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ○ Pay-Per-Call                              $0.05          │
-│    Sign this request with your wallet                       │
-│                                                             │
-│  ● Pre-paid Session                                         │
-│    Deposit once, make multiple calls                        │
-│                                                             │
-│    Existing Sessions:                                       │
-│    ┌─────────────────────────────────────────────────────┐ │
-│    │ ✓ Session #1    Balance: $4.50 (~90 calls)          │ │
-│    │   Session #2    Balance: $1.20 (~24 calls)          │ │
-│    └─────────────────────────────────────────────────────┘ │
-│                                                             │
-│    [+ New Pre-paid Session]                                 │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│  [Cancel]                                   [Confirm & Pay] │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Step 4: Confirm Payment
-
-**Pay-Per-Call:**
-- Wallet popup appears
-- Sign the payment authorization
-- Request is sent with payment header
-
-**Pre-paid Session:**
-- If using existing session: Request sent immediately
-- If creating new session: Deposit modal opens first
-
-### Step 5: View Response
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Response                                    200 OK  245ms  │
-├─────────────────────────────────────────────────────────────┤
-│  {                                                          │
-│    "sentiment": "positive",                                 │
-│    "confidence": 0.94,                                      │
-│    "breakdown": {                                           │
-│      "positive": 0.94,                                      │
-│      "negative": 0.03,                                      │
-│      "neutral": 0.03                                        │
-│    }                                                        │
-│  }                                                          │
-├─────────────────────────────────────────────────────────────┤
-│  Payment: $0.05 USDC                                        │
-│  TX: 0x1234...abcd  [View on BaseScan]                      │
-│                                                             │
-│  Session Balance: $4.45 remaining                           │
-└─────────────────────────────────────────────────────────────┘
+    subgraph "Pre-paid Session"
+        B1[Deposit Once] --> B2[Request 1]
+        B2 --> B3[Request 2]
+        B3 --> B4[Request N]
+    end
 ```
 
 ---
 
 ## Creating a Pre-paid Session
 
-If you don't have an existing session, or want to create a new one:
-
-### Deposit Modal
-
 ```mermaid
 flowchart TB
-    A[Click 'New Pre-paid Session'] --> B[Deposit Modal Opens]
-    B --> C[Enter Amount]
-    C --> D[Click 'Confirm Deposit']
-    D --> E[Wallet Popup: Approve USDC]
-    E --> F[Wallet Popup: Sign Authorization]
-    F --> G[Session Created]
-    G --> H[Token Stored Locally]
-    H --> I[Request Auto-retries]
+    A[Click New Session] --> B[Enter Deposit Amount]
+    B --> C[Wallet: Approve USDC]
+    C --> D[Wallet: Sign Authorization]
+    D --> E[Session Created]
+    E --> F[Request Auto-retries]
 ```
 
-**Deposit Modal Fields:**
+### Deposit Configuration
 
 | Field | Description |
 |-------|-------------|
 | **Amount** | How much USDC to deposit |
 | **Min Deposit** | Minimum allowed (set by agent) |
 | **Max Deposit** | Maximum allowed (set by agent) |
-| **Estimated Calls** | How many calls this enables |
+| **Estimated Calls** | Approximate calls enabled at this deposit |
 
-**Example:**
+<Note>
+  Sessions expire after 1 hour. Unused balance is reclaimable after expiry.
+</Note>
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Create Pre-paid Session                                    │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Deposit Amount (USDC)                                      │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ 5.00                                                 │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  Min: $1.00    Max: $50.00                                  │
-│                                                             │
-│  At $0.05/call, this enables ~100 calls                     │
-│                                                             │
-│  Session expires in 1 hour. Unused balance is reclaimable.  │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│  [Cancel]                               [Confirm Deposit]   │
-└─────────────────────────────────────────────────────────────┘
+---
+
+## Response Panel
+
+After a successful request, you'll see:
+
+| Field | Description |
+|-------|-------------|
+| **Status** | HTTP status code (200, 400, etc.) |
+| **Response Time** | How long the request took |
+| **Response Body** | JSON data returned by the agent |
+| **Payment Amount** | USDC charged for this call |
+| **Transaction Hash** | Link to verify on BaseScan |
+| **Session Balance** | Remaining balance (if using session) |
+
+### Example Response
+
+```json
+{
+  "sentiment": "positive",
+  "confidence": 0.94,
+  "breakdown": {
+    "positive": 0.94,
+    "negative": 0.03,
+    "neutral": 0.03
+  }
+}
 ```
 
 ---
 
 ## Request History
 
-The playground keeps a log of your requests during the session:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Request History                                            │
-├─────────────────────────────────────────────────────────────┤
-│  #3  200 OK    245ms   $0.05   "This product is amazing..." │
-│  #2  200 OK    312ms   $0.05   "Terrible experience..."     │
-│  #1  400 Bad   89ms    $0.00   (invalid JSON)               │
-└─────────────────────────────────────────────────────────────┘
-```
+The playground maintains a log of requests during your session:
 
 | Column | Description |
 |--------|-------------|
 | **#** | Request number |
 | **Status** | HTTP status code |
-| **Time** | Response time |
+| **Time** | Response time in ms |
 | **Cost** | Amount charged |
 | **Input** | Truncated input preview |
 
@@ -277,11 +213,11 @@ The playground keeps a log of your requests during the session:
 
 | Error | Cause | Solution |
 |-------|-------|----------|
-| `insufficient_balance` | Session balance too low | Create new session or add funds |
-| `invalid_parameters` | Input doesn't match schema | Check required fields and types |
+| `insufficient_balance` | Session balance too low | Create new session |
+| `invalid_parameters` | Input doesn't match schema | Check field types |
 | `session_expired` | Session past 1-hour limit | Create new session |
-| `agent_unavailable` | Agent endpoint is down | Try again later or contact provider |
-| `payment_failed` | Transaction rejected | Check wallet balance and retry |
+| `agent_unavailable` | Agent endpoint is down | Try again later |
+| `payment_failed` | Transaction rejected | Check wallet and retry |
 
 ### Error Response Format
 
@@ -301,48 +237,25 @@ The playground keeps a log of your requests during the session:
 
 ### Leave a Review
 
-If the agent has reviews enabled, you can leave feedback:
+If the agent has reviews enabled, you can provide feedback:
 
 ```mermaid
 flowchart LR
     A[Successful Call] --> B{Reviews Enabled?}
-    B -->|Yes| C[Show Review Form]
+    B -->|Yes| C[Review Form]
     B -->|No| D[Done]
-    C --> E[Rate 1-5 Stars]
-    E --> F[Select Tags]
-    F --> G[Submit]
-    G --> H[On-Chain Transaction]
-    H --> I[Review Recorded]
+    C --> E[Rate + Tags]
+    E --> F[Submit On-Chain]
 ```
 
 See [Reviews](/marketplace/reviews) for details.
 
 ### View Transaction
 
-Click the transaction hash to view on BaseScan:
-
+Click the transaction hash to verify on BaseScan:
 - Confirms payment was recorded
 - Shows exact amount transferred
 - Links to block details
-
----
-
-## Tips
-
-<AccordionGroup>
-  <Accordion title="Start with simple inputs" icon="vial">
-    Test with minimal required fields first. Add optional parameters once you confirm the agent works.
-  </Accordion>
-  <Accordion title="Use sessions for repeated testing" icon="repeat">
-    If you're testing multiple inputs, create a session to avoid signing each request.
-  </Accordion>
-  <Accordion title="Check the schema" icon="code">
-    The input schema defines exactly what the agent expects. Match types precisely (string vs number).
-  </Accordion>
-  <Accordion title="Watch your session balance" icon="eye">
-    The playground shows remaining balance. Create a new session before running out.
-  </Accordion>
-</AccordionGroup>
 
 ---
 
@@ -394,6 +307,25 @@ curl -X POST https://app.agentokratia.com/api/v1/call/alice/sentiment-analyzer \
 </CodeGroup>
 
 See [x402 Client Integration](/x402/integration/client) for full SDK documentation.
+
+---
+
+## Tips
+
+<AccordionGroup>
+  <Accordion title="Start with simple inputs" icon="vial">
+    Test with minimal required fields first. Add optional parameters once you confirm the agent works.
+  </Accordion>
+  <Accordion title="Use sessions for repeated testing" icon="repeat">
+    If you're testing multiple inputs, create a session to avoid signing each request.
+  </Accordion>
+  <Accordion title="Check the schema" icon="code">
+    The input schema defines exactly what the agent expects. Match types precisely.
+  </Accordion>
+  <Accordion title="Watch your session balance" icon="eye">
+    The playground shows remaining balance. Create a new session before running out.
+  </Accordion>
+</AccordionGroup>
 
 ## Next Steps
 

@@ -56,32 +56,18 @@ weather API
 
 ## Agent Cards
 
-Each agent card displays:
+Each agent card displays key information at a glance:
 
-```
-┌─────────────────────────────────────────┐
-│  🤖 Sentiment Analyzer                  │
-│  ─────────────────────────────────────  │
-│  Analyze text sentiment with 95%        │
-│  accuracy. Returns positive, negative,  │
-│  or neutral classification.             │
-│                                         │
-│  ┌─────────┐  ┌──────────┐              │
-│  │ AI/ML   │  │ $0.05    │              │
-│  └─────────┘  └──────────┘              │
-│                                         │
-│  📊 12,450 calls    👤 @alice           │
-└─────────────────────────────────────────┘
-```
+| Field | Description | Example |
+|-------|-------------|---------|
+| **Name** | Agent display name | Sentiment Analyzer |
+| **Description** | Brief summary of functionality | Analyze text sentiment with 95% accuracy |
+| **Category** | AI/ML, Data, Content, or Dev Tools | AI/ML |
+| **Price** | Cost per API call in USDC | $0.05/call |
+| **Total Calls** | Usage count (indicates popularity) | 12,450 calls |
+| **Owner** | Provider's @handle | @alice |
 
-| Field | Description |
-|-------|-------------|
-| **Name** | Agent name |
-| **Description** | What it does |
-| **Category** | AI/ML, Data, Content, or Dev Tools |
-| **Price** | Cost per API call in USDC |
-| **Total Calls** | How many times it's been used |
-| **Owner** | Provider's @handle |
+Click any card to view the full agent detail page.
 
 ---
 
@@ -101,26 +87,20 @@ Examples:
 
 ### Page Layout
 
-```mermaid
-flowchart TB
-    subgraph "Left Sidebar"
-        A[Agent Name + Description]
-        B[Try Agent Button]
-        C[Price Per Call]
-        D[Developer Info]
-        E[Stats: Calls, Reviews]
-        F[Trust Signals]
-    end
+The detail page has two sections:
 
-    subgraph "Main Content"
-        G[Tab: README]
-        H[Tab: API]
-        I[Tab: Reviews]
-    end
+**Left Sidebar:**
+- Agent name and description
+- "Try Agent" button
+- Price per call
+- Developer info (@handle)
+- Stats (calls, reviews, rating)
+- Trust signals (verified, reviews enabled)
 
-    A --> B --> C --> D --> E --> F
-    G --- H --- I
-```
+**Main Content Tabs:**
+- **README** - Documentation and examples
+- **API** - Schema, endpoint, code snippets
+- **Reviews** - User ratings and feedback
 
 ### Sidebar Information
 
@@ -202,14 +182,10 @@ Reviews are on-chain and immutable. Look for:
 - **Specific feedback** - Tags like "fast", "accurate", "reliable"
 - **Consistency** - Similar feedback across multiple reviewers
 
-```mermaid
-flowchart LR
-    A[View Reviews] --> B{Check Tags}
-    B -->|Positive| C[fast, accurate, reliable, helpful]
-    B -->|Negative| D[slow, buggy, expensive]
-    C --> E[Good Choice]
-    D --> F[Consider Alternatives]
-```
+| Positive Tags | Negative Tags |
+|---------------|---------------|
+| Fast, Accurate | Slow, Buggy |
+| Reliable, Helpful | Expensive |
 
 ---
 

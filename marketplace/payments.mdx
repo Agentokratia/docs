@@ -144,17 +144,17 @@ flowchart TB
 
 ### Balance Tracking
 
-```
-Deposit:    $10.00 USDC
-─────────────────────────
-Call 1:     -$0.05  →  Balance: $9.95
-Call 2:     -$0.05  →  Balance: $9.90
-Call 3:     -$0.05  →  Balance: $9.85
-...
-Call 100:   -$0.05  →  Balance: $5.00
-─────────────────────────
-Available:  $5.00 (100 more calls possible)
-```
+Each API call deducts from your session balance:
+
+| Action | Deduction | Remaining Balance |
+|--------|-----------|-------------------|
+| Deposit | +$10.00 | $10.00 |
+| Call 1 | -$0.05 | $9.95 |
+| Call 2 | -$0.05 | $9.90 |
+| ... | ... | ... |
+| Call 100 | -$0.05 | $5.00 |
+
+At $0.05 per call, a $10 deposit enables approximately 200 calls.
 
 ### Session Selection
 

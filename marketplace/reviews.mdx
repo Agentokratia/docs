@@ -9,21 +9,6 @@ The marketplace uses an **on-chain reputation system** powered by ERC-8004. Revi
 
 ## Why On-Chain Reviews?
 
-```mermaid
-flowchart LR
-    subgraph "Traditional Reviews"
-        A1[User writes review] --> A2[Stored in database]
-        A2 --> A3[Platform can edit/delete]
-        A3 --> A4[Fake reviews possible]
-    end
-
-    subgraph "On-Chain Reviews"
-        B1[User writes review] --> B2[Stored on blockchain]
-        B2 --> B3[Immutable forever]
-        B3 --> B4[Tied to real payment]
-    end
-```
-
 | Traditional Reviews | On-Chain Reviews |
 |--------------------|------------------|
 | Platform can delete | Immutable |
@@ -121,28 +106,21 @@ Quick descriptors for your experience:
 
 ## Review Form
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Leave a Review                                             │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  How was your experience?                                   │
-│                                                             │
-│  ☆ ☆ ☆ ☆ ☆                                                 │
-│                                                             │
-│  Select up to 2 tags:                                       │
-│                                                             │
-│  [Fast] [Accurate] [Reliable] [Helpful]                     │
-│  [Slow] [Buggy] [Expensive]                                 │
-│                                                             │
-│  Comment (optional):                                        │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ Great sentiment analysis! Very accurate results.    │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│  [Cancel]                                [Submit Review]    │
-└─────────────────────────────────────────────────────────────┘
+The review form contains three sections:
+
+| Section | Description |
+|---------|-------------|
+| **Star Rating** | Select 1-5 stars for overall experience |
+| **Feedback Tags** | Choose up to 2 tags (Fast, Accurate, Reliable, Helpful, Slow, Buggy, Expensive) |
+| **Comment** | Optional text feedback (stored off-chain) |
+
+```mermaid
+flowchart LR
+    A[Select Stars] --> B[Choose Tags]
+    B --> C[Add Comment]
+    C --> D[Submit Review]
+    D --> E[Sign Transaction]
+    E --> F[Review On-Chain]
 ```
 
 ---
@@ -153,76 +131,33 @@ On any agent's detail page, click the **Reviews** tab.
 
 ### Review Stats
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Reviews                                                    │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Average Rating: 4.2 ⭐  (156 reviews)                      │
-│                                                             │
-│  ⭐⭐⭐⭐⭐  ████████████████████  65%                      │
-│  ⭐⭐⭐⭐☆  ██████████            25%                      │
-│  ⭐⭐⭐☆☆  ████                   8%                      │
-│  ⭐⭐☆☆☆  █                       1%                      │
-│  ⭐☆☆☆☆  ░                       1%                      │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+The reviews tab displays aggregate statistics:
+
+| Metric | Description |
+|--------|-------------|
+| **Average Rating** | Mean score across all reviews (e.g., 4.2/5) |
+| **Total Reviews** | Number of reviews submitted |
+| **Rating Distribution** | Percentage breakdown by star rating |
+| **Common Tags** | Most frequently used feedback tags |
 
 ### Individual Reviews
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  0x1234...abcd                              2 hours ago     │
-│  ⭐⭐⭐⭐⭐  [Fast] [Accurate]                               │
-│                                                             │
-│  "Excellent sentiment analysis. Very accurate results       │
-│   even with complex sentences."                             │
-│                                                             │
-│  TX: 0x5678...  [View on BaseScan]                          │
-└─────────────────────────────────────────────────────────────┘
-```
+Each review displays:
 
-| Field | Description |
-|-------|-------------|
-| **Reviewer** | Wallet address (shortened) or @handle |
-| **Rating** | 1-5 stars |
-| **Tags** | Selected feedback tags |
-| **Comment** | Optional text feedback |
-| **Time** | When review was submitted |
-| **TX Hash** | On-chain transaction proof |
+| Field | Description | Example |
+|-------|-------------|---------|
+| **Reviewer** | Wallet address or @handle | `0x1234...abcd` |
+| **Rating** | 1-5 stars | ⭐⭐⭐⭐⭐ |
+| **Tags** | Selected feedback tags | Fast, Accurate |
+| **Comment** | Optional text feedback | "Excellent sentiment analysis..." |
+| **Time** | When review was submitted | 2 hours ago |
+| **TX Hash** | On-chain transaction proof | Link to BaseScan |
 
 ---
 
 ## On-Chain Storage (ERC-8004)
 
-Reviews are stored on the **Reputation Registry** smart contract:
-
-```mermaid
-flowchart TB
-    subgraph "Review Data"
-        A[Score: 0-100]
-        B[Tag 1 ID]
-        C[Tag 2 ID]
-        D[Reviewer Address]
-        E[Timestamp]
-    end
-
-    subgraph "On-Chain"
-        F[Reputation Registry Contract]
-    end
-
-    subgraph "Off-Chain"
-        G[Comment Text - Supabase]
-    end
-
-    A --> F
-    B --> F
-    C --> F
-    D --> F
-    E --> F
-    A -.-> G
-```
+Reviews are stored on the **Reputation Registry** smart contract.
 
 ### What's On-Chain
 
@@ -309,20 +244,19 @@ The trust score considers:
 
 ## Provider Responses
 
-Providers can respond to reviews:
+Providers can respond to reviews to address feedback or acknowledge improvements.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  0x1234...abcd                              2 hours ago     │
-│  ⭐⭐☆☆☆  [Slow]                                            │
-│                                                             │
-│  "Response times were too long for my use case."            │
-│                                                             │
-│  ─────────────────────────────────────────────────────────  │
-│  Provider Response (@alice):                                │
-│  "Thanks for the feedback! We've upgraded our servers       │
-│   and response times are now 50% faster."                   │
-└─────────────────────────────────────────────────────────────┘
+| Component | Description |
+|-----------|-------------|
+| **Original Review** | User's rating, tags, and comment |
+| **Provider Response** | Provider's reply addressing the feedback |
+| **Response Time** | When the provider responded |
+
+```mermaid
+flowchart LR
+    A[User Submits Review] --> B[Provider Notified]
+    B --> C[Provider Writes Response]
+    C --> D[Response Displayed]
 ```
 
 <Note>
