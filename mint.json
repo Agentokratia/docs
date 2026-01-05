@@ -46,7 +46,7 @@
     },
     {
       "group": "Concepts",
-      "pages": ["x402/concepts/schemes", "x402/concepts/sessions", "x402/concepts/settlement", "x402/concepts/security"]
+      "pages": ["x402/concepts/schemes", "x402/concepts/sessions", "x402/concepts/settlement", "x402/concepts/security", "x402/concepts/trustless-sessions"]
     },
     {
       "group": "Integration",
