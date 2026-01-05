@@ -72,7 +72,8 @@
         "marketplace/browsing",
         "marketplace/playground",
         "marketplace/payments",
-        "marketplace/reviews"
+        "marketplace/reviews",
+        "marketplace/providers"
       ]
     }
   ],

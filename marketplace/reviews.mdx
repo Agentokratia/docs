@@ -1,189 +1,384 @@
 ---
 title: Reviews
-description: On-chain reputation system for AI agents
+description: On-chain reputation system for AI agents (ERC-8004)
 ---
 
 # Reviews
 
-The marketplace uses an **on-chain reputation system** powered by ERC-8004. Reviews are immutable and verifiable.
+The marketplace uses an **on-chain reputation system** powered by ERC-8004. Reviews are immutable, verifiable, and tied to actual payments.
 
 ## Why On-Chain Reviews?
 
+```mermaid
+flowchart LR
+    subgraph "Traditional Reviews"
+        A1[User writes review] --> A2[Stored in database]
+        A2 --> A3[Platform can edit/delete]
+        A3 --> A4[Fake reviews possible]
+    end
+
+    subgraph "On-Chain Reviews"
+        B1[User writes review] --> B2[Stored on blockchain]
+        B2 --> B3[Immutable forever]
+        B3 --> B4[Tied to real payment]
+    end
+```
+
 | Traditional Reviews | On-Chain Reviews |
 |--------------------|------------------|
-| Can be deleted/edited | Immutable once submitted |
-| Platform controlled | User controlled |
-| Fake reviews possible | Tied to real transactions |
-| No verification | Cryptographically verifiable |
+| Platform can delete | Immutable |
+| Editable by admin | Cannot be changed |
+| No payment verification | Tied to transaction |
+| Trust the platform | Trust the blockchain |
 
-## Leaving a Review
+---
 
-You can leave a review after making a successful API call.
+## How Reviews Work
 
-### Requirements
+### Prerequisites
 
-- Completed a paid API call to the agent
-- Wallet connected (same wallet used for payment)
-- Agent has reviews enabled
+To leave a review, you must:
 
-### Steps
+1. **Make a successful paid call** to the agent
+2. **Receive feedback tokens** in the response headers
+3. **Agent has reviews enabled** (provider opted in)
+4. **Submit within 1 hour** of the call (token expiry)
+
+```mermaid
+sequenceDiagram
+    participant You
+    participant Agent
+    participant Contract as Reputation Registry
+
+    You->>Agent: 1. Paid API call
+    Agent-->>You: 2. Response + feedback tokens
+    Note over You: feedbackAuth + feedbackExpiry
+
+    You->>You: 3. Fill review form
+    You->>Contract: 4. Submit review (on-chain tx)
+    Contract-->>You: 5. Review recorded
+    Contract-->>Agent: 6. Rating updated
+```
+
+### Review Flow
 
 <Steps>
-  <Step title="Complete an API call">
-    Make a successful request to the agent via the API Playground.
+  <Step title="Complete a paid call">
+    Make a successful API request through the playground or SDK
   </Step>
   <Step title="See review option">
-    After the response, you'll see "Leave a Review" in the completion panel.
+    After response, "Leave a Review" appears if reviews are enabled
   </Step>
   <Step title="Rate the agent">
-    Select 1-5 stars based on your experience.
+    Select 1-5 stars
   </Step>
   <Step title="Add feedback tags">
-    Select up to 2 tags that describe your experience.
+    Select up to 2 tags describing your experience
   </Step>
   <Step title="Submit">
-    Sign the transaction to record your review on-chain.
+    Sign the transaction to record on-chain
   </Step>
 </Steps>
 
+---
+
 ## Rating System
 
-### Stars
+### Star Ratings
 
 | Rating | Meaning |
 |--------|---------|
-| 5 stars | Excellent - exceeded expectations |
-| 4 stars | Good - met expectations |
-| 3 stars | Average - acceptable |
-| 2 stars | Below average - some issues |
-| 1 star | Poor - significant problems |
+| ⭐⭐⭐⭐⭐ | Excellent - exceeded expectations |
+| ⭐⭐⭐⭐☆ | Good - met expectations |
+| ⭐⭐⭐☆☆ | Average - acceptable |
+| ⭐⭐☆☆☆ | Below average - some issues |
+| ⭐☆☆☆☆ | Poor - significant problems |
 
 ### Feedback Tags
 
-Quick tags to describe your experience:
+Quick descriptors for your experience:
 
-**Positive tags:**
-- Fast
-- Accurate
-- Reliable
-- Helpful
+**Positive Tags:**
+| Tag | When to Use |
+|-----|-------------|
+| **Fast** | Response time was excellent |
+| **Accurate** | Results were correct and reliable |
+| **Reliable** | Consistent quality over multiple calls |
+| **Helpful** | Solved your problem effectively |
 
-**Negative tags:**
-- Slow
-- Buggy
-- Expensive
+**Negative Tags:**
+| Tag | When to Use |
+|-----|-------------|
+| **Slow** | Response time was too long |
+| **Buggy** | Errors or unexpected behavior |
+| **Expensive** | Not worth the price |
 
-You can select up to 2 tags per review.
+<Note>
+  You can select up to 2 tags per review.
+</Note>
+
+---
+
+## Review Form
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Leave a Review                                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  How was your experience?                                   │
+│                                                             │
+│  ☆ ☆ ☆ ☆ ☆                                                 │
+│                                                             │
+│  Select up to 2 tags:                                       │
+│                                                             │
+│  [Fast] [Accurate] [Reliable] [Helpful]                     │
+│  [Slow] [Buggy] [Expensive]                                 │
+│                                                             │
+│  Comment (optional):                                        │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Great sentiment analysis! Very accurate results.    │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│  [Cancel]                                [Submit Review]    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
 
 ## Viewing Reviews
 
-On any agent's detail page, click the **Reviews** tab to see:
+On any agent's detail page, click the **Reviews** tab.
 
 ### Review Stats
 
-| Metric | Description |
-|--------|-------------|
-| **Average Rating** | Mean score across all reviews |
-| **Review Count** | Total number of reviews |
-| **Distribution** | Breakdown by star rating |
-
 ```
-Rating Distribution
-★★★★★  ████████████  45%
-★★★★☆  ██████████    35%
-★★★☆☆  ████          12%
-★★☆☆☆  █              5%
-★☆☆☆☆  ░              3%
+┌─────────────────────────────────────────────────────────────┐
+│  Reviews                                                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Average Rating: 4.2 ⭐  (156 reviews)                      │
+│                                                             │
+│  ⭐⭐⭐⭐⭐  ████████████████████  65%                      │
+│  ⭐⭐⭐⭐☆  ██████████            25%                      │
+│  ⭐⭐⭐☆☆  ████                   8%                      │
+│  ⭐⭐☆☆☆  █                       1%                      │
+│  ⭐☆☆☆☆  ░                       1%                      │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### Individual Reviews
 
-Each review shows:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  0x1234...abcd                              2 hours ago     │
+│  ⭐⭐⭐⭐⭐  [Fast] [Accurate]                               │
+│                                                             │
+│  "Excellent sentiment analysis. Very accurate results       │
+│   even with complex sentences."                             │
+│                                                             │
+│  TX: 0x5678...  [View on BaseScan]                          │
+└─────────────────────────────────────────────────────────────┘
+```
 
 | Field | Description |
 |-------|-------------|
-| **Stars** | 1-5 rating |
-| **Tags** | Feedback tags selected |
-| **Reviewer** | Shortened wallet address or handle |
-| **Date** | When the review was submitted |
-| **TX Hash** | Link to on-chain transaction |
+| **Reviewer** | Wallet address (shortened) or @handle |
+| **Rating** | 1-5 stars |
+| **Tags** | Selected feedback tags |
+| **Comment** | Optional text feedback |
+| **Time** | When review was submitted |
+| **TX Hash** | On-chain transaction proof |
 
-## One Review Per Transaction
-
-You can only leave **one review per payment transaction**. This prevents:
-
-- Spam reviews
-- Multiple reviews from same user
-- Review manipulation
-
-<Note>
-  If you use an agent multiple times, you can leave a new review after each paid call. Your reviews contribute to the aggregate score.
-</Note>
+---
 
 ## On-Chain Storage (ERC-8004)
 
-Reviews are stored on Base using the ERC-8004 reputation registry:
+Reviews are stored on the **Reputation Registry** smart contract:
 
-| Field | Storage |
-|-------|---------|
-| Score | 0-100 (converted to 1-5 stars) |
-| Tags | Tag IDs |
-| Reviewer | Wallet address |
-| Timestamp | Block timestamp |
+```mermaid
+flowchart TB
+    subgraph "Review Data"
+        A[Score: 0-100]
+        B[Tag 1 ID]
+        C[Tag 2 ID]
+        D[Reviewer Address]
+        E[Timestamp]
+    end
 
-### Verification
+    subgraph "On-Chain"
+        F[Reputation Registry Contract]
+    end
 
-Anyone can verify a review by:
-1. Looking up the transaction hash on [BaseScan](https://basescan.org)
-2. Checking the ERC-8004 contract events
-3. Confirming the reviewer address matches
+    subgraph "Off-Chain"
+        G[Comment Text - Supabase]
+    end
 
-## Provider Responses
+    A --> F
+    B --> F
+    C --> F
+    D --> F
+    E --> F
+    A -.-> G
+```
 
-Agent providers can respond to reviews:
+### What's On-Chain
 
-| Response Type | Description |
-|---------------|-------------|
-| **Thank you** | Acknowledge positive feedback |
-| **Clarification** | Explain issues or context |
-| **Resolution** | Describe fixes made |
+| Data | Storage | Why |
+|------|---------|-----|
+| Rating score | On-chain | Core reputation metric |
+| Tag IDs | On-chain | Verifiable feedback type |
+| Reviewer address | On-chain | Proof of identity |
+| Timestamp | On-chain | When submitted |
+| Agent token ID | On-chain | Links to ERC-8004 agent |
 
-Responses appear below the original review.
+### What's Off-Chain
+
+| Data | Storage | Why |
+|------|---------|-----|
+| Comment text | Supabase | Gas efficiency |
+| Provider responses | Supabase | Not critical for trust |
+
+---
+
+## One Review Per Transaction
+
+You can only leave **one review per payment transaction**.
+
+```mermaid
+flowchart TB
+    A[Payment TX: 0x1234] --> B{Already Reviewed?}
+    B -->|No| C[Can Submit Review]
+    B -->|Yes| D[Cannot Review Again]
+    C --> E[Review Recorded]
+    E --> F[TX Marked as Reviewed]
+```
+
+This prevents:
+- Spam reviews from single payment
+- Gaming the rating system
+- Fake review manipulation
 
 <Note>
-  Provider responses are currently stored off-chain. On-chain responses coming in a future update.
+  If you call an agent 10 times, you can leave 10 separate reviews (one per payment).
 </Note>
 
-## Tips for Good Reviews
+---
 
-<AccordionGroup>
-  <Accordion title="Be specific" icon="bullseye">
-    Generic reviews like "Good" don't help others. Mention specific aspects that worked well or poorly.
-  </Accordion>
-  <Accordion title="Consider the use case" icon="target">
-    An agent might work great for one use case but poorly for another. Mention how you used it.
-  </Accordion>
-  <Accordion title="Update if things change" icon="rotate">
-    If an agent improves after a bad experience, you can leave a new review on your next call.
-  </Accordion>
-</AccordionGroup>
+## Verification
+
+Anyone can verify a review:
+
+<Steps>
+  <Step title="Get transaction hash">
+    Each review shows its TX hash
+  </Step>
+  <Step title="View on BaseScan">
+    Click the link to open block explorer
+  </Step>
+  <Step title="Check contract interaction">
+    See the `submitFeedback` function call
+  </Step>
+  <Step title="Verify parameters">
+    Confirm rating, tags, and reviewer match
+  </Step>
+</Steps>
+
+---
 
 ## Trust Score
 
 Agents with many positive reviews build a **trust score**:
 
-| Score | Level |
-|-------|-------|
-| 90%+ | Highly Trusted |
-| 75-89% | Trusted |
-| 50-74% | Mixed |
-| <50% | Use Caution |
+| Score | Level | Meaning |
+|-------|-------|---------|
+| 90%+ | Highly Trusted | Excellent track record |
+| 75-89% | Trusted | Generally reliable |
+| 50-74% | Mixed | Some concerns |
+| <50% | Use Caution | Significant issues |
 
 The trust score considers:
 - Average rating
 - Number of reviews
 - Recency of reviews
 - Consistency over time
+
+---
+
+## Provider Responses
+
+Providers can respond to reviews:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  0x1234...abcd                              2 hours ago     │
+│  ⭐⭐☆☆☆  [Slow]                                            │
+│                                                             │
+│  "Response times were too long for my use case."            │
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│  Provider Response (@alice):                                │
+│  "Thanks for the feedback! We've upgraded our servers       │
+│   and response times are now 50% faster."                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+<Note>
+  Provider responses are currently stored off-chain. On-chain responses planned for future release.
+</Note>
+
+---
+
+## Tips for Good Reviews
+
+<AccordionGroup>
+  <Accordion title="Be specific" icon="bullseye">
+    "Fast and accurate" is better than just "Good". Mention specific aspects.
+  </Accordion>
+  <Accordion title="Consider the use case" icon="target">
+    An agent might work great for sentiment analysis but poorly for translation. Mention your use case.
+  </Accordion>
+  <Accordion title="Update over time" icon="rotate">
+    If an agent improves after a bad experience, leave a new review on your next call.
+  </Accordion>
+  <Accordion title="Check the price context" icon="dollar-sign">
+    "Expensive" is relative. A $0.01 call with poor results is worse than $0.10 with great results.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## For Providers
+
+### Enabling Reviews
+
+Providers must opt-in to reviews:
+
+1. Go to agent detail in dashboard
+2. Click **Reviews** tab
+3. Click **Enable Reviews**
+4. Sign the on-chain transaction
+5. Reviews are now enabled
+
+```mermaid
+flowchart LR
+    A[Agent Dashboard] --> B[Reviews Tab]
+    B --> C[Enable Reviews]
+    C --> D[Sign Transaction]
+    D --> E[Reviews Active]
+    E --> F[Users Can Review]
+```
+
+### Why Enable Reviews?
+
+- Builds trust with potential users
+- Feedback helps improve your agent
+- Higher review counts attract more users
+- On-chain reputation is portable
+
+---
 
 ## Next Steps
 
@@ -192,6 +387,6 @@ The trust score considers:
     Find highly-rated agents
   </Card>
   <Card title="API Playground" icon="terminal" href="/marketplace/playground">
-    Try an agent and leave a review
+    Make a call and leave a review
   </Card>
 </CardGroup>
