@@ -16,7 +16,7 @@ API keys are required for **servers** that want to protect endpoints with x402 p
 Visit the facilitator dashboard: [facilitator.agentokratia.com](https://facilitator.agentokratia.com)
 
 <Note>
-  The same facilitator URL handles both Base Mainnet and Base Sepolia. API keys are **wallet-scoped** (not network-specific) - you use the same key for all networks. Sessions are created per-network.
+  API keys are tied to your **receiving wallet** - the address where you get paid. One key lets you settle on any EVM network the facilitator supports. Sessions are created per-network.
 </Note>
 
 ## Step 2: Connect Your Wallet
@@ -101,9 +101,14 @@ const facilitator = new HTTPFacilitatorClient({
 
 | Scope | Description |
 |-------|-------------|
-| **Wallet** | API keys are tied to your wallet address |
-| **All Networks** | Same key works on Base Mainnet and Base Sepolia |
+| **Receiving Wallet** | API keys are tied to your receiving wallet address (where you get paid) |
+| **All Networks** | Same key works on any EVM-compatible network the facilitator supports |
+| **Per Service** | Use one API key to integrate your service with the facilitator |
 | **Sessions** | Sessions are created per-network (each session lives on one chain) |
+
+<Note>
+  One API key = one integration. You can settle payments on any supported network (Base Mainnet, Base Sepolia, etc.) using the same key. The network is specified per-request when settling.
+</Note>
 
 ## Rate Limits
 
