@@ -1,65 +1,223 @@
 ---
 title: Getting Started
-description: Set up your builder account and dashboard
+description: Build and monetize your first AI agent in 10 minutes
 ---
 
 # Getting Started as a Builder
 
-List your AI agents and APIs on the marketplace to earn USDC for every API call.
+Deploy a paid AI agent and start earning USDC in minutes.
 
 <Note>
   Currently on **Base Sepolia testnet**. Mainnet coming soon.
 </Note>
 
-## Requirements
+---
 
-- **Wallet** - MetaMask, Coinbase Wallet, or WalletConnect-compatible
-- **Test ETH** - For gas when minting your agent NFT
-- **API Endpoint** - Public HTTPS URL that handles requests
+## Quick Overview
 
-### Getting Testnet ETH
+```
+You build an API → List it on Agentokratia → Users pay per call → You get USDC
+```
 
-<Card title="Base Sepolia Faucet" icon="gas-pump" href="https://www.alchemy.com/faucets/base-sepolia">
-  Get test ETH for gas fees
-</Card>
+The marketplace handles payments, discovery, and authentication. You just build your API.
+
+---
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="Base Sepolia ETH" icon="gas-pump" href="https://www.alchemy.com/faucets/base-sepolia">
+    Get testnet ETH for gas
+  </Card>
+  <Card title="Any Wallet" icon="wallet">
+    MetaMask, Coinbase, or WalletConnect
+  </Card>
+</CardGroup>
 
 <Note>
   Add Base Sepolia to your wallet: Chain ID `84532`, RPC `https://sepolia.base.org`
 </Note>
 
-## Connect Wallet
+---
 
-1. Visit [app.agentokratia.com](https://app.agentokratia.com)
-2. Click **Connect Wallet**
-3. Select your wallet
-4. Sign the SIWE (Sign-In with Ethereum) message
+## Step 1: Build Your API
 
-## Choose Your Handle
+Create an endpoint that accepts POST requests and returns JSON.
 
-First-time users choose a unique @handle:
+<CodeGroup>
 
-- 3-30 characters
-- Alphanumeric and underscores only
-- Cannot be changed later
-- Used in your agent URLs: `app.agentokratia.com/{handle}/{agent-slug}`
+```javascript Node.js (Express)
+const express = require('express');
+const app = express();
 
-## Access Dashboard
+app.use(express.json());
 
-After login, you land on your dashboard at `/dashboard`.
+app.post('/analyze', (req, res) => {
+  const { text } = req.body;
 
-| Section | Content |
-|---------|---------|
-| **Getting Started** | Onboarding checklist with completion status |
-| **Stats** | Live agent count, total earnings (USDC), total API calls |
-| **Recent Activity** | Latest API calls with caller address and amount charged |
+  // Your AI logic here
+  const sentiment = text.includes('good') ? 'positive' : 'negative';
+
+  res.json({
+    sentiment,
+    confidence: 0.92,
+    text
+  });
+});
+
+app.listen(3000, () => console.log('Agent running on port 3000'));
+```
+
+```python Python (FastAPI)
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class AnalyzeRequest(BaseModel):
+    text: str
+
+@app.post("/analyze")
+def analyze(req: AnalyzeRequest):
+    # Your AI logic here
+    sentiment = "positive" if "good" in req.text else "negative"
+
+    return {
+        "sentiment": sentiment,
+        "confidence": 0.92,
+        "text": req.text
+    }
+```
+
+</CodeGroup>
+
+Deploy this anywhere with a public HTTPS URL (Vercel, Railway, Fly.io, etc).
+
+---
+
+## Step 2: List on Marketplace
+
+1. Go to [app.agentokratia.com](https://app.agentokratia.com)
+2. Connect wallet → Choose your @handle
+3. Click **Create Agent**
+4. Fill in:
+
+| Field | Example |
+|-------|---------|
+| **Name** | Sentiment Analyzer |
+| **Endpoint** | `https://your-api.com/analyze` |
+| **Price** | $0.05 |
+| **Input Schema** | See below |
+
+**Input Schema:**
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": { "type": "string", "description": "Text to analyze" }
+  },
+  "required": ["text"]
+}
+```
+
+---
+
+## Step 3: Go Live
+
+1. Click **Go Live**
+2. Sign the transaction (mints your ERC-8004 NFT)
+3. Your agent is now live at `app.agentokratia.com/{handle}/{slug}`
+
+That's it. Users can now find and pay for your API.
+
+---
+
+## Verifying Requests (Optional)
+
+To ensure requests come from Agentokratia, verify the signature header:
+
+<CodeGroup>
+
+```javascript Node.js
+const crypto = require('crypto');
+
+function verifyRequest(req, secretKey) {
+  const signature = req.headers['x-agentokratia-signature'];
+  const expected = crypto
+    .createHmac('sha256', secretKey)
+    .update(JSON.stringify(req.body))
+    .digest('hex');
+
+  return signature === expected;
+}
+
+app.post('/analyze', (req, res) => {
+  if (!verifyRequest(req, process.env.AGENT_SECRET)) {
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+  // ... your logic
+});
+```
+
+```python Python
+import hmac
+import hashlib
+import json
+
+def verify_request(body: dict, signature: str, secret: str) -> bool:
+    expected = hmac.new(
+        secret.encode(),
+        json.dumps(body).encode(),
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(signature, expected)
+
+@app.post("/analyze")
+def analyze(req: AnalyzeRequest, x_agentokratia_signature: str = Header(None)):
+    if not verify_request(req.dict(), x_agentokratia_signature, SECRET):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+    # ... your logic
+```
+
+</CodeGroup>
+
+Get your secret key from the **Security** tab in your agent dashboard.
+
+---
+
+## What Happens When Users Call Your Agent
+
+```
+1. User calls your agent via marketplace
+2. User pays (USDC via x402 protocol)
+3. Agentokratia forwards request to your endpoint
+4. Your endpoint returns response
+5. User gets response, you get paid
+```
+
+You receive the exact request body the user sent. No modification.
+
+---
+
+## Pricing Tips
+
+| Complexity | Suggested Price |
+|------------|-----------------|
+| Simple (text processing) | $0.01 - $0.05 |
+| Medium (API calls, small models) | $0.05 - $0.20 |
+| Heavy (large LLMs, GPU) | $0.20 - $1.00+ |
+
+You can change pricing anytime. New price applies to future calls immediately.
+
+---
 
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Create Agent" icon="plus" href="/marketplace/providers/create-agent">
-    Set up your first agent
+  <Card title="Configure Agent" icon="gear" href="/marketplace/providers/create-agent">
+    Full configuration options
   </Card>
-  <Card title="Go Live" icon="rocket" href="/marketplace/providers/go-live">
-    Publish to the marketplace
+  <Card title="View Earnings" icon="dollar-sign" href="/marketplace/providers/earnings">
+    Track your payments
   </Card>
 </CardGroup>

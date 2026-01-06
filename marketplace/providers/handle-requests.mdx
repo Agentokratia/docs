@@ -1,35 +1,66 @@
 ---
 title: Handle Requests
-description: Technical guide for handling API requests
+description: Technical details for processing API requests
 ---
 
 # Handling Requests
 
-Your endpoint receives requests from the Agentokratia platform.
+When users call your agent, Agentokratia forwards the request to your endpoint.
+
+---
 
 ## Request Format
 
-Your endpoint receives POST requests:
+Your endpoint receives a standard POST request:
 
 ```http
 POST /your-endpoint HTTP/1.1
-Host: api.yourservice.com
 Content-Type: application/json
-X-Agentokratia-Signature: {signature}
+X-Agentokratia-Signature: abc123...
 
 {
-  "text": "Analyze this text",
-  "language": "en"
+  "text": "Analyze this text"
+}
+```
+
+The body contains exactly what the user sent, matching your input schema.
+
+---
+
+## Required Response
+
+Return JSON with HTTP 200 for success:
+
+```json
+{
+  "sentiment": "positive",
+  "confidence": 0.94
 }
 ```
 
 ---
 
-## Verifying Requests
+## Error Handling
 
-Use the secret key to verify requests are from Agentokratia:
+| Status | When | User Charged? |
+|--------|------|---------------|
+| 2xx | Success | Yes |
+| 4xx | Bad input, auth error | No |
+| 5xx | Server error | No |
 
-```javascript
+<Note>
+  Users only pay for successful responses. Return appropriate error codes.
+</Note>
+
+---
+
+## Signature Verification
+
+Verify the `X-Agentokratia-Signature` header to ensure requests are authentic.
+
+<CodeGroup>
+
+```javascript Node.js
 const crypto = require('crypto');
 
 function verifySignature(body, signature, secretKey) {
@@ -41,43 +72,38 @@ function verifySignature(body, signature, secretKey) {
 }
 ```
 
----
+```python Python
+import hmac
+import hashlib
+import json
 
-## Response Format
-
-Return JSON responses:
-
-```json
-{
-  "sentiment": "positive",
-  "confidence": 0.94,
-  "breakdown": {
-    "positive": 0.94,
-    "negative": 0.03,
-    "neutral": 0.03
-  }
-}
+def verify_signature(body: dict, signature: str, secret: str) -> bool:
+    expected = hmac.new(
+        secret.encode(),
+        json.dumps(body).encode(),
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(signature, expected)
 ```
 
+</CodeGroup>
+
+Get your secret from the **Security** tab in your agent dashboard.
+
 ---
 
-## Error Handling
+## Timeouts
 
-Return appropriate HTTP status codes:
+Default timeout is 30 seconds. Configure in the **Connection** tab.
 
-| Status | When | Charged? |
-|--------|------|----------|
-| 200 | Success | Yes |
-| 400 | Bad input | No |
-| 401 | Unauthorized | No |
-| 500 | Server error | No |
+For long-running tasks, consider:
+- Returning a job ID and polling endpoint
+- Using webhooks for completion
 
-<Note>
-  Users are only charged for successful (2xx) responses.
-</Note>
+---
 
 ## Next Steps
 
-<Card title="x402 Server SDK" icon="code" href="/x402/integration/server">
-  Full server integration guide
+<Card title="Best Practices" icon="star" href="/marketplace/providers/best-practices">
+  Optimize reliability and performance
 </Card>
