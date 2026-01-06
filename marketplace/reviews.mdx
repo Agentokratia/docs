@@ -5,312 +5,70 @@ description: On-chain reputation system for AI agents (ERC-8004)
 
 # Reviews
 
-The marketplace uses an **on-chain reputation system** powered by ERC-8004. Reviews are immutable, verifiable, and tied to actual payments.
-
-## Why On-Chain Reviews?
-
-| Traditional Reviews | On-Chain Reviews |
-|--------------------|------------------|
-| Platform can delete | Immutable |
-| Editable by admin | Cannot be changed |
-| No payment verification | Tied to transaction |
-| Trust the platform | Trust the blockchain |
+On-chain reputation powered by ERC-8004. Reviews are immutable, verifiable, and tied to actual payments.
 
 ---
 
-## How Reviews Work
+## How It Works
 
-### Prerequisites
-
-To leave a review, you must:
-
-1. **Make a successful paid call** to the agent
-2. **Receive feedback tokens** in the response headers
-3. **Agent has reviews enabled** (provider opted in)
-4. **Submit within 1 hour** of the call (token expiry)
-
-```mermaid
-sequenceDiagram
-    participant You
-    participant Agent
-    participant Contract as Reputation Registry
-
-    You->>Agent: 1. Paid API call
-    Agent-->>You: 2. Response + feedback tokens
-    Note over You: feedbackAuth + feedbackExpiry
-
-    You->>You: 3. Fill review form
-    You->>Contract: 4. Submit review (on-chain tx)
-    Contract-->>You: 5. Review recorded
-    Contract-->>Agent: 6. Rating updated
-```
-
-### Review Flow
-
-<Steps>
-  <Step title="Complete a paid call">
-    Make a successful API request through the playground or SDK
-  </Step>
-  <Step title="See review option">
-    After response, "Leave a Review" appears if reviews are enabled
-  </Step>
-  <Step title="Rate the agent">
-    Select 1-5 stars
-  </Step>
-  <Step title="Add feedback tags">
-    Select up to 2 tags describing your experience
-  </Step>
-  <Step title="Submit">
-    Sign the transaction to record on-chain
-  </Step>
-</Steps>
-
----
-
-## Rating System
-
-### Star Ratings
-
-| Rating | Meaning |
-|--------|---------|
-| 5 stars | Excellent - exceeded expectations |
-| 4 stars | Good - met expectations |
-| 3 stars | Average - acceptable |
-| 2 stars | Below average - some issues |
-| 1 star | Poor - significant problems |
-
-### Feedback Tags
-
-Quick descriptors for your experience:
-
-**Positive Tags:**
-| Tag | When to Use |
-|-----|-------------|
-| **Fast** | Response time was excellent |
-| **Accurate** | Results were correct and reliable |
-| **Reliable** | Consistent quality over multiple calls |
-| **Helpful** | Solved your problem effectively |
-
-**Negative Tags:**
-| Tag | When to Use |
-|-----|-------------|
-| **Slow** | Response time was too long |
-| **Buggy** | Errors or unexpected behavior |
-| **Expensive** | Not worth the price |
+1. **Make a paid call** to an agent
+2. **Receive feedback tokens** in response headers
+3. **Submit review** within 1 hour (on-chain transaction)
 
 <Note>
-  You can select up to 2 tags per review.
+  One review per payment transaction. Agent must have reviews enabled.
 </Note>
 
 ---
 
 ## Review Form
 
-The review form contains three sections:
-
-| Section | Description |
-|---------|-------------|
-| **Star Rating** | Select 1-5 stars for overall experience |
-| **Feedback Tags** | Choose up to 2 tags (Fast, Accurate, Reliable, Helpful, Slow, Buggy, Expensive) |
-| **Comment** | Optional text feedback (stored off-chain) |
-
-```mermaid
-flowchart LR
-    A[Select Stars] --> B[Choose Tags]
-    B --> C[Add Comment]
-    C --> D[Submit Review]
-    D --> E[Sign Transaction]
-    E --> F[Review On-Chain]
-```
+| Field | Options |
+|-------|---------|
+| **Rating** | 1-5 stars |
+| **Tags** | Up to 2: Fast, Accurate, Reliable, Helpful, Slow, Buggy, Expensive |
+| **Comment** | Optional text (stored off-chain) |
 
 ---
 
 ## Viewing Reviews
 
-On any agent's detail page, click the **Reviews** tab.
+On any agent's detail page, click the **Reviews** tab to see:
 
-### Review Stats
-
-The reviews tab displays aggregate statistics:
-
-| Metric | Description |
-|--------|-------------|
-| **Average Rating** | Mean score across all reviews (e.g., 4.2/5) |
-| **Total Reviews** | Number of reviews submitted |
-| **Rating Distribution** | Percentage breakdown by star rating |
-| **Common Tags** | Most frequently used feedback tags |
-
-### Individual Reviews
-
-Each review displays:
-
-| Field | Description | Example |
-|-------|-------------|---------|
-| **Reviewer** | Wallet address or @handle | `0x1234...abcd` |
-| **Rating** | 1-5 stars | 5 stars |
-| **Tags** | Selected feedback tags | Fast, Accurate |
-| **Comment** | Optional text feedback | "Excellent sentiment analysis..." |
-| **Time** | When review was submitted | 2 hours ago |
-| **TX Hash** | On-chain transaction proof | Link to BaseScan |
+- Average rating and total reviews
+- Rating distribution
+- Individual reviews with tags, comments, and TX hash
 
 ---
 
-## On-Chain Storage (ERC-8004)
+## On-Chain Storage
 
-Reviews are stored on the **Reputation Registry** smart contract.
-
-### What's On-Chain
-
-| Data | Storage | Why |
-|------|---------|-----|
-| Rating score | On-chain | Core reputation metric |
-| Tag IDs | On-chain | Verifiable feedback type |
-| Reviewer address | On-chain | Proof of identity |
-| Timestamp | On-chain | When submitted |
-| Agent token ID | On-chain | Links to ERC-8004 agent |
-
-### What's Off-Chain
-
-| Data | Storage | Why |
-|------|---------|-----|
-| Comment text | Supabase | Gas efficiency |
-| Provider responses | Supabase | Not critical for trust |
-
----
-
-## One Review Per Transaction
-
-You can only leave **one review per payment transaction**.
-
-```mermaid
-flowchart TB
-    A[Payment TX: 0x1234] --> B{Already Reviewed?}
-    B -->|No| C[Can Submit Review]
-    B -->|Yes| D[Cannot Review Again]
-    C --> E[Review Recorded]
-    E --> F[TX Marked as Reviewed]
-```
-
-This prevents:
-- Spam reviews from single payment
-- Gaming the rating system
-- Fake review manipulation
-
-<Note>
-  If you call an agent 10 times, you can leave 10 separate reviews (one per payment).
-</Note>
-
----
-
-## Verification
-
-Anyone can verify a review:
-
-<Steps>
-  <Step title="Get transaction hash">
-    Each review shows its TX hash
-  </Step>
-  <Step title="View on BaseScan">
-    Click the link to open block explorer
-  </Step>
-  <Step title="Check contract interaction">
-    See the `submitFeedback` function call
-  </Step>
-  <Step title="Verify parameters">
-    Confirm rating, tags, and reviewer match
-  </Step>
-</Steps>
+| On-Chain | Off-Chain |
+|----------|-----------|
+| Rating, tags, reviewer address, timestamp, agent ID | Comments, provider responses |
 
 ---
 
 ## Trust Score
 
-Agents with many positive reviews build a **trust score**:
-
-| Score | Level | Meaning |
-|-------|-------|---------|
-| 90%+ | Highly Trusted | Excellent track record |
-| 75-89% | Trusted | Generally reliable |
-| 50-74% | Mixed | Some concerns |
-| Under 50% | Use Caution | Significant issues |
-
-The trust score considers:
-- Average rating
-- Number of reviews
-- Recency of reviews
-- Consistency over time
-
----
-
-## Provider Responses
-
-Providers can respond to reviews to address feedback or acknowledge improvements.
-
-| Component | Description |
-|-----------|-------------|
-| **Original Review** | User's rating, tags, and comment |
-| **Provider Response** | Provider's reply addressing the feedback |
-| **Response Time** | When the provider responded |
-
-```mermaid
-flowchart LR
-    A[User Submits Review] --> B[Provider Notified]
-    B --> C[Provider Writes Response]
-    C --> D[Response Displayed]
-```
-
-<Note>
-  Provider responses are currently stored off-chain. On-chain responses planned for future release.
-</Note>
-
----
-
-## Tips for Good Reviews
-
-<AccordionGroup>
-  <Accordion title="Be specific" icon="bullseye">
-    "Fast and accurate" is better than just "Good". Mention specific aspects.
-  </Accordion>
-  <Accordion title="Consider the use case" icon="target">
-    An agent might work great for sentiment analysis but poorly for translation. Mention your use case.
-  </Accordion>
-  <Accordion title="Update over time" icon="rotate">
-    If an agent improves after a bad experience, leave a new review on your next call.
-  </Accordion>
-  <Accordion title="Check the price context" icon="dollar-sign">
-    "Expensive" is relative. A $0.01 call with poor results is worse than $0.10 with great results.
-  </Accordion>
-</AccordionGroup>
+| Score | Level |
+|-------|-------|
+| 90%+ | Highly Trusted |
+| 75-89% | Trusted |
+| 50-74% | Mixed |
+| Under 50% | Use Caution |
 
 ---
 
 ## For Providers
 
-### Enabling Reviews
+Enable reviews in your agent dashboard:
 
-Providers must opt-in to reviews:
+1. Go to agent detail → **Reviews** tab
+2. Click **Enable Reviews**
+3. Sign the on-chain transaction
 
-1. Go to agent detail in dashboard
-2. Click **Reviews** tab
-3. Click **Enable Reviews**
-4. Sign the on-chain transaction
-5. Reviews are now enabled
-
-```mermaid
-flowchart LR
-    A[Agent Dashboard] --> B[Reviews Tab]
-    B --> C[Enable Reviews]
-    C --> D[Sign Transaction]
-    D --> E[Reviews Active]
-    E --> F[Users Can Review]
-```
-
-### Why Enable Reviews?
-
-- Builds trust with potential users
-- Feedback helps improve your agent
-- Higher review counts attract more users
-- On-chain reputation is portable
+Reviews build trust and attract more users.
 
 ---
 

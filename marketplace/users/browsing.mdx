@@ -1,153 +1,47 @@
 ---
 title: Browsing the Marketplace
-description: How to find, discover, and evaluate AI agents
+description: How to find and evaluate AI agents
 ---
 
 # Browsing the Marketplace
 
-Find the perfect AI agent for your needs. No account required to browse.
+Find AI agents at [app.agentokratia.com/marketplace](https://app.agentokratia.com/marketplace). No account required to browse.
 
-## Accessing the Marketplace
-
-Visit [app.agentokratia.com/marketplace](https://app.agentokratia.com/marketplace)
-
-```mermaid
-flowchart LR
-    A[Visit Marketplace] --> B{Wallet Connected?}
-    B -->|No| C[Browse Only]
-    B -->|Yes| D[Browse + Test + Pay]
-    C --> E[View Agents]
-    D --> E
-    E --> F[Click Agent]
-    F --> G[Agent Detail Page]
-```
+---
 
 ## Search & Filter
 
-### Search Bar
+**Search** by name or description (e.g., "sentiment analysis", "weather API")
 
-Search agents by name or description:
+**Categories:** All, AI/ML, Data, Content, Dev Tools
 
-```
-sentiment analysis
-```
+**Sort by:** Most Popular, Price (Low/High)
 
-```
-weather API
-```
-
-### Category Tabs
-
-| Category | What's Included |
-|----------|-----------------|
-| **All** | Everything in the marketplace |
-| **AI/ML** | Machine learning, NLP, computer vision, embeddings |
-| **Data** | Data feeds, analytics, aggregation, oracles |
-| **Content** | Text generation, translation, moderation |
-| **Dev Tools** | Code analysis, testing, documentation |
-
-### Sorting Options
-
-| Sort | Description |
-|------|-------------|
-| **Most Popular** | Highest total API calls |
-| **Price: Low to High** | Cheapest first |
-| **Price: High to Low** | Premium services first |
+---
 
 ## Agent Cards
 
-Each agent card displays key information at a glance:
+Each card shows: name, description, category, price per call, total calls, and provider @handle.
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| **Name** | Agent display name | Sentiment Analyzer |
-| **Description** | Brief summary of functionality | Analyze text sentiment with 95% accuracy |
-| **Category** | AI/ML, Data, Content, or Dev Tools | AI/ML |
-| **Price** | Cost per API call in USDC | $0.05/call |
-| **Total Calls** | Usage count (indicates popularity) | 12,450 calls |
-| **Owner** | Provider's @handle | @alice |
-
-Click any card to view the full agent detail page.
+Click any card to view details.
 
 ---
 
 ## Agent Detail Page
 
-Click any agent card to see the full detail page.
+**URL:** `app.agentokratia.com/{handle}/{slug}`
 
-### URL Structure
+### Sidebar
+- Agent name, description, price
+- **Try Agent** button
+- Provider @handle
+- Stats: calls, reviews, rating
+- Trust signals
 
-```
-https://app.agentokratia.com/{handle}/{slug}
-```
-
-Examples:
-- `app.agentokratia.com/alice/sentiment-analyzer`
-- `app.agentokratia.com/bob/weather-api`
-
-### Page Layout
-
-The detail page has two sections:
-
-**Left Sidebar:**
-- Agent name and description
-- "Try Agent" button
-- Price per call
-- Developer info (@handle)
-- Stats (calls, reviews, rating)
-- Trust signals (verified, reviews enabled)
-
-**Main Content Tabs:**
-- **README** - Documentation and examples
-- **API** - Schema, endpoint, code snippets
-- **Reviews** - User ratings and feedback
-
-### Sidebar Information
-
-| Section | Content |
-|---------|---------|
-| **Agent Info** | Name, description, category |
-| **Try Agent** | Button to open API Playground |
-| **Price** | Cost per call (e.g., `$0.05/call`) |
-| **Developer** | Provider's @handle, link to profile |
-| **Stats** | Total calls, review count, avg rating |
-| **Trust Signals** | On-chain verified, reviews enabled |
-
-### Content Tabs
-
-#### README Tab
-
-Full documentation written by the provider:
-
-- What the agent does
-- Use cases
-- Example inputs/outputs
-- Limitations
-- Changelog
-
-Rendered as Markdown with syntax highlighting.
-
-#### API Tab
-
-Technical integration details:
-
-| Section | Description |
-|---------|-------------|
-| **Endpoint** | `POST /api/v1/call/{handle}/{slug}` |
-| **Input Schema** | JSON Schema for parameters |
-| **Output Schema** | JSON Schema for response |
-| **Code Examples** | JavaScript, Python, cURL snippets |
-| **OpenAPI Spec** | Downloadable specification |
-
-#### Reviews Tab
-
-User feedback and ratings:
-
-- Average rating (1-5 stars)
-- Rating distribution chart
-- Individual reviews with tags
-- Reviewer wallet address
-- On-chain verification links
+### Tabs
+- **README** - Documentation, examples, limitations
+- **API** - Endpoint, schemas, code snippets
+- **Reviews** - Ratings and feedback
 
 ---
 
@@ -155,87 +49,26 @@ User feedback and ratings:
 
 ### Trust Signals
 
-Look for these indicators:
-
 | Signal | Meaning |
 |--------|---------|
-| **On-Chain Verified** | Agent has ERC-8004 NFT minted |
-| **Reviews Enabled** | Provider accepts on-chain feedback |
-| **High Call Count** | Battle-tested, widely used |
-| **Recent Reviews** | Actively maintained |
+| On-Chain Verified | Has ERC-8004 NFT |
+| Reviews Enabled | Accepts on-chain feedback |
+| High Call Count | Battle-tested |
 
-### Performance Stats
+### What to Check
 
-Some agents display:
-
-| Metric | Good Value |
-|--------|------------|
-| **Uptime** | 99%+ |
-| **Avg Response** | Under 500ms |
-| **Error Rate** | Under 1% |
-
-### Reading Reviews
-
-Reviews are on-chain and immutable. Look for:
-
-- **Recency** - Recent reviews indicate active maintenance
-- **Specific feedback** - Tags like "fast", "accurate", "reliable"
-- **Consistency** - Similar feedback across multiple reviewers
-
-| Positive Tags | Negative Tags |
-|---------------|---------------|
-| Fast, Accurate | Slow, Buggy |
-| Reliable, Helpful | Expensive |
-
----
-
-## Comparing Agents
-
-When multiple agents offer similar functionality:
-
-| Factor | How to Compare |
-|--------|----------------|
-| **Price** | Lower isn't always better - check quality |
-| **Call Count** | Higher = more trusted |
-| **Reviews** | Read actual feedback, not just stars |
-| **Response Time** | Check stats if available |
-| **Documentation** | Better docs = easier integration |
+- **Uptime:** 99%+
+- **Response time:** Under 500ms
+- **Error rate:** Under 1%
+- **Recent reviews:** Active maintenance
 
 ---
 
 ## Provider Profiles
 
-Click a provider's @handle to see their profile:
-
-- All their published agents
-- Total calls across all agents
-- Bio and links
-
-URL: `app.agentokratia.com/creator/{handle}`
+Click any @handle to see their profile at `app.agentokratia.com/creator/{handle}`
 
 ---
-
-## Tips
-
-<AccordionGroup>
-  <Accordion title="Finding reliable agents" icon="shield-check">
-    - Look for high call counts (10,000+)
-    - Check for recent positive reviews
-    - Verify on-chain badge is present
-    - Read the README for clear documentation
-  </Accordion>
-  <Accordion title="Comparing prices" icon="scale-balanced">
-    - Consider your expected call volume
-    - Factor in response time requirements
-    - Higher price may mean better quality
-    - Check if there are free tiers or trials
-  </Accordion>
-  <Accordion title="Testing before committing" icon="flask">
-    - Use the API Playground to test
-    - Start with pay-per-call to evaluate
-    - Only create sessions after you trust the agent
-  </Accordion>
-</AccordionGroup>
 
 ## Next Steps
 

@@ -5,307 +5,80 @@ description: How to pay for API calls using USDC on Base
 
 # Payments
 
-The marketplace uses **USDC stablecoins on Base** for all payments via the [x402 protocol](/x402/introduction).
+Pay for API calls using **USDC on Base** via the [x402 protocol](/x402/introduction).
 
 ## Requirements
 
-Before making payments:
-
-| Requirement | Description |
-|-------------|-------------|
-| **Wallet** | MetaMask, Coinbase Wallet, Rainbow, or WalletConnect-compatible |
-| **USDC** | USDC tokens on Base network |
-| **ETH** | Small amount for gas (~$0.01 per transaction) |
+- **Wallet** - MetaMask, Coinbase Wallet, or WalletConnect-compatible
+- **USDC** - On Base network
+- **ETH** - Small amount for gas (~$0.01)
 
 <Note>
-  Need USDC on Base? Use the [Base Bridge](https://bridge.base.org) to bridge from Ethereum, or buy directly on exchanges that support Base.
+  Need USDC on Base? Use the [Base Bridge](https://bridge.base.org) or buy on exchanges that support Base.
 </Note>
 
 ---
 
-## Payment Methods
+## Pay-Per-Call
 
-### Pay-Per-Call (Exact Scheme)
+Sign each request individually. Best for testing and occasional use.
 
-Sign and pay for each individual API call.
-
-```mermaid
-sequenceDiagram
-    participant You
-    participant Wallet
-    participant Agent
-    participant Chain as Base Chain
-
-    You->>Agent: 1. Send request
-    Agent-->>You: 2. 402 Payment Required ($0.05)
-    You->>Wallet: 3. Sign payment
-    Wallet-->>You: 4. Signature
-    You->>Agent: 5. Retry with signature
-    Agent->>Chain: 6. Verify & transfer
-    Chain-->>Agent: 7. Confirmed
-    Agent-->>You: 8. Response
-```
-
-| Pros | Cons |
-|------|------|
-| No upfront commitment | Wallet popup every request |
-| Pay exactly what you use | Higher cumulative gas costs |
-| Simple mental model | Slower for frequent calls |
-
-**Best for:** Testing, occasional use, one-off requests.
+**Pros:** No upfront commitment, pay exactly what you use
+**Cons:** Wallet popup every request, higher gas costs
 
 ---
 
-### Pre-paid Session (Escrow Scheme)
+## Pre-paid Sessions
 
-Deposit USDC upfront, then make unlimited calls until balance runs out.
+Deposit USDC once, make unlimited calls until balance depletes.
 
-```mermaid
-sequenceDiagram
-    participant You
-    participant Wallet
-    participant x402 as x402 Facilitator
-    participant Agent
+**Pros:** One signature for many calls, lower gas, faster
+**Cons:** Upfront deposit, 1-hour expiry
 
-    Note over You,x402: Session Creation (once)
-    You->>Wallet: 1. Approve USDC spend
-    Wallet-->>You: 2. Approved
-    You->>Wallet: 3. Sign deposit authorization
-    Wallet-->>You: 4. Signature
-    You->>x402: 5. Create session ($10 deposit)
-    x402-->>You: 6. Session token
+### How Sessions Work
 
-    Note over You,Agent: API Calls (unlimited)
-    You->>Agent: 7. Request + session token
-    Agent->>x402: 8. Verify & deduct $0.05
-    x402-->>Agent: 9. Valid
-    Agent-->>You: 10. Response
+1. **Deposit** - Choose amount, sign once
+2. **Call** - Each request deducts from balance automatically
+3. **Reclaim** - Get unused balance back after expiry
 
-    You->>Agent: 11. Another request
-    Agent->>x402: 12. Deduct $0.05
-    Agent-->>You: 13. Response
-```
-
-| Pros | Cons |
-|------|------|
-| One signature for many calls | Requires upfront deposit |
-| No wallet popups after deposit | Balance locked until reclaim |
-| Lower total gas costs | Session expires (1 hour) |
-| Faster responses | Slightly more complex |
-
-**Best for:** Frequent use, AI agents, automated workflows, high-volume testing.
+<Note>
+  At $0.05/call, a $10 deposit enables ~200 calls.
+</Note>
 
 ---
 
 ## Cost Comparison
 
-For 100 API calls at $0.05 each:
+For 100 calls at $0.05 each:
 
-| Method | Signatures | Gas Cost | Total Cost |
-|--------|------------|----------|------------|
-| Pay-Per-Call | 100 | ~$1.00 | ~$6.00 |
-| Pre-paid Session | 1 | ~$0.02 | ~$5.02 |
-
-<Note>
-  Pre-paid sessions save significantly on gas for frequent usage.
-</Note>
-
----
-
-## Pre-paid Sessions In-Depth
-
-### Creating a Session
-
-```mermaid
-flowchart TB
-    A[Select Pre-paid Session] --> B[Enter Deposit Amount]
-    B --> C{Amount Valid?}
-    C -->|Below Min| D[Increase Amount]
-    C -->|Above Max| E[Decrease Amount]
-    C -->|Valid| F[Confirm Deposit]
-    D --> B
-    E --> B
-    F --> G[Wallet: Approve USDC]
-    G --> H[Wallet: Sign Authorization]
-    H --> I[Session Created]
-    I --> J[Store Token Locally]
-```
-
-### Session Properties
-
-| Property | Description |
-|----------|-------------|
-| **Session ID** | Unique identifier (UUID) |
-| **Session Token** | Secret key for authentication |
-| **Deposit** | Amount of USDC deposited |
-| **Balance** | Remaining USDC available |
-| **Expiry** | 1 hour from creation |
-| **Receiver** | Agent owner's wallet address |
-
-### Balance Tracking
-
-Each API call deducts from your session balance:
-
-| Action | Deduction | Remaining Balance |
-|--------|-----------|-------------------|
-| Deposit | +$10.00 | $10.00 |
-| Call 1 | -$0.05 | $9.95 |
-| Call 2 | -$0.05 | $9.90 |
-| ... | ... | ... |
-| Call 100 | -$0.05 | $5.00 |
-
-At $0.05 per call, a $10 deposit enables approximately 200 calls.
-
-### Session Selection
-
-When you have multiple sessions, the system auto-selects:
-
-1. **Active sessions** for the target agent (same receiver address)
-2. **Sufficient balance** for the request price
-3. **Highest balance** session (to maximize utilization)
-
-```mermaid
-flowchart TB
-    A[API Request] --> B{Existing Sessions?}
-    B -->|No| C[Create New Session]
-    B -->|Yes| D{Any with Balance?}
-    D -->|No| C
-    D -->|Yes| E[Select Highest Balance]
-    E --> F[Use Session Token]
-    C --> G[Deposit Modal]
-```
-
-### Reclaiming Unused Balance
-
-If you don't use all your deposited funds:
-
-<Steps>
-  <Step title="Wait for expiry">
-    Sessions expire 1 hour after creation
-  </Step>
-  <Step title="Reclaim available">
-    After expiry, uncaptured balance becomes reclaimable
-  </Step>
-  <Step title="Call reclaim">
-    Execute reclaim on the smart contract
-  </Step>
-  <Step title="Funds returned">
-    USDC transferred back to your wallet
-  </Step>
-</Steps>
-
-<Warning>
-  Reclaim is not instant. After expiry, there's a settlement window before funds return.
-</Warning>
-
----
-
-## Pricing Display
-
-Prices are displayed in USD but paid in USDC (1:1 peg):
-
-| Display | USDC Amount | Stored As |
-|---------|-------------|-----------|
-| $0.01 | 0.01 USDC | 100 cents |
-| $0.05 | 0.05 USDC | 500 cents |
-| $1.00 | 1.00 USDC | 10000 cents |
-
----
-
-## Gas Costs (Base Network)
-
-Base L2 has very low gas fees:
-
-| Action | Approximate Cost |
-|--------|------------------|
-| Approve USDC | ~$0.001 |
-| Create session | ~$0.01 |
-| Pay-per-call signature | ~$0.01 |
-| Reclaim balance | ~$0.005 |
-
-<Note>
-  Gas is paid in ETH, not USDC. Keep a small ETH balance (~$1) for transactions.
-</Note>
-
----
-
-## Failed Payments
-
-| Scenario | Charged? | What Happens |
-|----------|----------|--------------|
-| Insufficient USDC | No | Request blocked before sending |
-| Transaction rejected | No | User cancelled in wallet |
-| Insufficient session balance | No | Error returned, create new session |
-| Agent error (4xx) | No | Client error, not charged |
-| Agent error (5xx) | Maybe | Depends on when error occurred |
+| Method | Gas Cost | Total |
+|--------|----------|-------|
+| Pay-Per-Call | ~$1.00 | ~$6.00 |
+| Pre-paid Session | ~$0.02 | ~$5.02 |
 
 ---
 
 ## Security
 
-### Non-Custodial
-
-- You control your wallet at all times
-- Private keys never leave your device
-- Agentokratia cannot access your funds
-
-### Bounded Exposure
-
-- Pre-paid sessions limit maximum loss to deposit amount
-- No open-ended authorizations
-- Can reclaim unused balance
-
-### Transparent Pricing
-
-- Prices shown before you sign
-- No hidden fees
-- All transactions verifiable on Base
-
-### On-Chain Settlement
-
-```mermaid
-flowchart LR
-    A[Your Wallet] -->|Deposit| B[Escrow Contract]
-    B -->|Per-call deduction| C[Facilitator]
-    C -->|Batch settlement| D[Agent Owner Wallet]
-    B -->|Reclaim unused| A
-```
+- **Non-custodial** - You control your wallet
+- **Bounded exposure** - Sessions limit max loss to deposit
+- **Transparent** - All transactions verifiable on Base
 
 ---
 
 ## Troubleshooting
 
 <AccordionGroup>
-  <Accordion title="Transaction stuck or pending" icon="clock">
-    - Check [BaseScan](https://basescan.org) for transaction status
-    - Gas price may be too low - try speeding up in wallet
-    - Wait for network congestion to clear
+  <Accordion title="Transaction stuck" icon="clock">
+    Check [BaseScan](https://basescan.org) for status. Gas may be too low.
   </Accordion>
-  <Accordion title="Insufficient balance error" icon="wallet">
-    - Check USDC balance on Base network (not Ethereum mainnet)
-    - Ensure you have ETH for gas
-    - Create a new session with higher deposit
+  <Accordion title="Insufficient balance" icon="wallet">
+    Check USDC balance on Base (not Ethereum mainnet). Ensure ETH for gas.
   </Accordion>
   <Accordion title="Session expired" icon="hourglass-end">
-    - Sessions last 1 hour from creation
-    - Create a new session
-    - Reclaim unused balance from expired session
-  </Accordion>
-  <Accordion title="Wrong network" icon="network-wired">
-    - Switch to Base (mainnet) or Base Sepolia (testnet) in your wallet
-    - The app will prompt you to switch if on wrong network
+    Sessions last 1 hour. Create a new one. Reclaim unused balance.
   </Accordion>
 </AccordionGroup>
-
----
-
-## x402 Protocol
-
-The marketplace uses the x402 payment protocol. For technical details:
-
-- [x402 Introduction](/x402/introduction)
-- [Sessions Deep Dive](/x402/concepts/sessions)
-- [Settlement Process](/x402/concepts/settlement)
 
 ## Next Steps
 
