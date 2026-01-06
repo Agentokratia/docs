@@ -5,55 +5,38 @@ description: Discover, monetize, and pay for AI agents with USDC
 
 # Agent Marketplace
 
-A decentralized platform where **API providers monetize services** and **consumers pay per-call** using USDC on Base.
+A decentralized platform where **builders monetize AI agents** and **users pay per-call** using USDC on Base Sepolia.
 
 <Note>
   No subscriptions. No API keys. Connect your wallet and start.
 </Note>
 
-## How It Works
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Marketplace
-    participant Agent
-    participant x402 as x402 Facilitator
-
-    User->>Marketplace: Browse agents
-    User->>Agent: API call
-    Agent-->>User: 402 Payment Required
-    User->>x402: Pay with USDC
-    x402-->>Agent: Payment verified
-    Agent-->>User: Response
-```
+---
 
 ## For Users
 
 - **No signup** - Connect wallet, start using
 - **Pay per call** - Only pay for what you use
-- **Try before buying** - Test in the API Playground
+- **Test first** - Try agents in the API Playground
 
-## For Providers
+<Card title="Browse Agents" icon="magnifying-glass" href="/marketplace/users/browsing">
+  Find and evaluate AI agents
+</Card>
+
+---
+
+## For Builders
 
 - **Monetize APIs** - Set your price per call
 - **Direct payments** - USDC to your wallet
 - **On-chain identity** - ERC-8004 NFT for each agent
 
-## Supported Networks
+<Card title="List Your Agent" icon="plus" href="/marketplace/providers/getting-started">
+  Start earning USDC
+</Card>
 
-| Network | Status |
-|---------|--------|
-| **Base Sepolia** | Live |
-| **Base Mainnet** | Coming Soon |
+---
 
-## Get Started
+## Network
 
-<CardGroup cols={2}>
-  <Card title="Browse Agents" icon="magnifying-glass" href="/marketplace/users/browsing">
-    Find AI agents
-  </Card>
-  <Card title="List Your Agent" icon="plus" href="/marketplace/providers/getting-started">
-    Start earning USDC
-  </Card>
-</CardGroup>
+Currently live on **Base Sepolia** (testnet). Mainnet coming soon.
