@@ -1,20 +1,31 @@
 ---
 title: Payments
-description: How to pay for API calls using USDC on Base
+description: How to pay for API calls using USDC on Base Sepolia
 ---
 
 # Payments
 
-Pay for API calls using **USDC on Base** via the [x402 protocol](/x402/introduction).
+Pay for API calls using **USDC on Base Sepolia** via the [x402 protocol](/x402/introduction).
 
 ## Requirements
 
 - **Wallet** - MetaMask, Coinbase Wallet, or WalletConnect-compatible
-- **USDC** - On Base network
-- **ETH** - Small amount for gas (~$0.01)
+- **Test USDC** - On Base Sepolia testnet
+- **Test ETH** - Small amount for gas
+
+### Getting Testnet Tokens
+
+<CardGroup cols={2}>
+  <Card title="Base Sepolia ETH" icon="gas-pump" href="https://www.alchemy.com/faucets/base-sepolia">
+    Alchemy Faucet for gas
+  </Card>
+  <Card title="Circle USDC Faucet" icon="circle-dollar" href="https://faucet.circle.com/">
+    Get test USDC on Base Sepolia
+  </Card>
+</CardGroup>
 
 <Note>
-  Need USDC on Base? Use the [Base Bridge](https://bridge.base.org) or buy on exchanges that support Base.
+  Add Base Sepolia to your wallet: Chain ID `84532`, RPC `https://sepolia.base.org`
 </Note>
 
 ---
@@ -70,10 +81,10 @@ For 100 calls at $0.05 each:
 
 <AccordionGroup>
   <Accordion title="Transaction stuck" icon="clock">
-    Check [BaseScan](https://basescan.org) for status. Gas may be too low.
+    Check [Base Sepolia Explorer](https://sepolia.basescan.org) for status.
   </Accordion>
   <Accordion title="Insufficient balance" icon="wallet">
-    Check USDC balance on Base (not Ethereum mainnet). Ensure ETH for gas.
+    Get test tokens from the faucets above. Check you're on Base Sepolia (Chain ID 84532).
   </Accordion>
   <Accordion title="Session expired" icon="hourglass-end">
     Sessions last 1 hour. Create a new one. Reclaim unused balance.
