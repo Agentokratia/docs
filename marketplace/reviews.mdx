@@ -73,11 +73,11 @@ sequenceDiagram
 
 | Rating | Meaning |
 |--------|---------|
-| ⭐⭐⭐⭐⭐ | Excellent - exceeded expectations |
-| ⭐⭐⭐⭐☆ | Good - met expectations |
-| ⭐⭐⭐☆☆ | Average - acceptable |
-| ⭐⭐☆☆☆ | Below average - some issues |
-| ⭐☆☆☆☆ | Poor - significant problems |
+| 5 stars | Excellent - exceeded expectations |
+| 4 stars | Good - met expectations |
+| 3 stars | Average - acceptable |
+| 2 stars | Below average - some issues |
+| 1 star | Poor - significant problems |
 
 ### Feedback Tags
 
@@ -147,7 +147,7 @@ Each review displays:
 | Field | Description | Example |
 |-------|-------------|---------|
 | **Reviewer** | Wallet address or @handle | `0x1234...abcd` |
-| **Rating** | 1-5 stars | ⭐⭐⭐⭐⭐ |
+| **Rating** | 1-5 stars | 5 stars |
 | **Tags** | Selected feedback tags | Fast, Accurate |
 | **Comment** | Optional text feedback | "Excellent sentiment analysis..." |
 | **Time** | When review was submitted | 2 hours ago |
@@ -232,7 +232,7 @@ Agents with many positive reviews build a **trust score**:
 | 90%+ | Highly Trusted | Excellent track record |
 | 75-89% | Trusted | Generally reliable |
 | 50-74% | Mixed | Some concerns |
-| <50% | Use Caution | Significant issues |
+| Under 50% | Use Caution | Significant issues |
 
 The trust score considers:
 - Average rating
