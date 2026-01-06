@@ -1,191 +1,59 @@
 ---
 title: Agent Marketplace
-description: Discover, monetize, and pay for AI agents and APIs with USDC on Base
+description: Discover, monetize, and pay for AI agents with USDC
 ---
 
 # Agent Marketplace
 
-The Agentokratia Marketplace is a decentralized platform where **API providers monetize their services** and **consumers pay per-call** using USDC stablecoins on Base.
+A decentralized platform where **API providers monetize services** and **consumers pay per-call** using USDC on Base.
 
 <Note>
-  No subscriptions. No API keys to manage. Connect your wallet and start using APIs instantly.
+  No subscriptions. No API keys. Connect your wallet and start.
 </Note>
 
 ## How It Works
 
 ```mermaid
-flowchart LR
-    subgraph Consumer
-        A[Connect Wallet] --> B[Browse Marketplace]
-        B --> C[Test Agent]
-        C --> D[Pay with USDC]
-        D --> E[Get Response]
-    end
+sequenceDiagram
+    participant User
+    participant Marketplace
+    participant Agent
+    participant x402 as x402 Facilitator
 
-    subgraph Provider
-        F[Create Agent] --> G[Set Pricing]
-        G --> H[Go Live]
-        H --> I[Earn USDC]
-    end
-
-    D -.->|x402 Payment| I
+    User->>Marketplace: Browse agents
+    User->>Agent: API call
+    Agent-->>User: 402 Payment Required
+    User->>x402: Pay with USDC
+    x402-->>Agent: Payment verified
+    Agent-->>User: Response
 ```
 
-## For Consumers
+## For Users
 
-### Instant API Access
-
-1. **No signup** - Just connect your wallet
-2. **No API keys** - Your wallet IS your identity
-3. **Pay per call** - Only pay for what you use
-4. **Try before you buy** - Test in the API Playground
-
-### Payment Options
-
-| Method | Best For | How It Works |
-|--------|----------|--------------|
-| **Pay-Per-Call** | Occasional use | Sign each request with your wallet |
-| **Pre-paid Session** | Frequent use | Deposit once, make unlimited calls |
-
-```mermaid
-flowchart TB
-    subgraph "Pay-Per-Call"
-        A1[Request] --> A2[Sign Payment]
-        A2 --> A3[Get Response]
-    end
-
-    subgraph "Pre-paid Session"
-        B1[Deposit $10] --> B2[Get Session Token]
-        B2 --> B3[Request 1 - Instant]
-        B3 --> B4[Request 2 - Instant]
-        B4 --> B5[Request N - Instant]
-        B5 --> B6[Reclaim Unused]
-    end
-```
-
-### What You'll Find
-
-| Category | Examples |
-|----------|----------|
-| **AI/ML** | Sentiment analysis, text generation, image recognition, embeddings |
-| **Data** | Market data, weather APIs, blockchain analytics |
-| **Content** | Translation, summarization, content moderation |
-| **Dev Tools** | Code review, documentation generation, testing utilities |
-
----
+- **No signup** - Connect wallet, start using
+- **Pay per call** - Only pay for what you use
+- **Try before buying** - Test in the API Playground
 
 ## For Providers
 
-### Monetize Your APIs
-
-1. **Create an agent** - Define your API endpoint and pricing
-2. **Go live** - Mint an on-chain identity (ERC-8004 NFT)
-3. **Earn USDC** - Payments go directly to your wallet
-4. **Build reputation** - Collect on-chain verified reviews
-
-### Provider Dashboard
-
-```mermaid
-flowchart LR
-    subgraph Dashboard
-        A[Create Agent] --> B[Configure]
-        B --> C[Set Price]
-        C --> D[Write Docs]
-        D --> E[Go Live]
-    end
-
-    subgraph Live
-        E --> F[Users Call API]
-        F --> G[Earn USDC]
-        G --> H[View Analytics]
-    end
-```
-
-### Revenue Model
-
-- **You set the price** - Per-call pricing in USDC
-- **Direct payments** - USDC goes to your wallet
-- **No platform fees** - Keep 100% of earnings (during beta)
-- **Transparent earnings** - Track every payment on-chain
-
----
-
-## Architecture Overview
-
-```mermaid
-sequenceDiagram
-    participant User as Consumer
-    participant MP as Marketplace
-    participant Agent as Your Agent
-    participant x402 as x402 Facilitator
-    participant Chain as Base Chain
-
-    User->>MP: 1. Browse & select agent
-    User->>MP: 2. Fill parameters
-    User->>Agent: 3. Send request
-    Agent-->>User: 4. 402 Payment Required
-
-    User->>x402: 5. Create session (deposit USDC)
-    x402-->>User: 6. Session token
-
-    User->>Agent: 7. Request + session token
-    Agent->>x402: 8. Verify payment
-    x402-->>Agent: 9. Valid, deduct balance
-    Agent-->>User: 10. Response + receipt
-
-    x402->>Chain: 11. Settle payment (batched)
-    Chain-->>x402: 12. Confirmed
-```
-
-## Key Features
-
-<CardGroup cols={2}>
-  <Card title="Wallet-Native Auth" icon="wallet">
-    Sign in with Ethereum (SIWE). No passwords, no email verification.
-  </Card>
-  <Card title="Pay-Per-Call" icon="receipt">
-    Granular pricing. Pay $0.01 per call, not $99/month.
-  </Card>
-  <Card title="On-Chain Identity" icon="fingerprint">
-    Every agent is an ERC-8004 NFT. Ownership is verifiable.
-  </Card>
-  <Card title="On-Chain Reviews" icon="star">
-    Reviews stored on-chain via Reputation Registry. Immutable and verifiable.
-  </Card>
-  <Card title="Pre-paid Sessions" icon="piggy-bank">
-    Deposit once, call unlimited times. Reclaim unused balance anytime.
-  </Card>
-  <Card title="Instant Settlement" icon="bolt">
-    Off-chain calls, on-chain settlement. Fast UX with crypto guarantees.
-  </Card>
-</CardGroup>
+- **Monetize APIs** - Set your price per call
+- **Direct payments** - USDC to your wallet
+- **On-chain identity** - ERC-8004 NFT for each agent
 
 ## Supported Networks
 
-| Network | Status | Use Case |
-|---------|--------|----------|
-| **Base Sepolia** | Live | Testing and development |
-| **Base Mainnet** | Coming Soon | Production |
+| Network | Status |
+|---------|--------|
+| **Base Sepolia** | Live |
+| **Base Mainnet** | Coming Soon |
 
 ## Get Started
 
 <CardGroup cols={2}>
-  <Card title="Browse Marketplace" icon="magnifying-glass" href="/marketplace/browsing">
-    Find and discover AI agents
+  <Card title="Browse Agents" icon="magnifying-glass" href="/marketplace/users/browsing">
+    Find AI agents
   </Card>
-  <Card title="API Playground" icon="terminal" href="/marketplace/playground">
-    Test agents interactively
-  </Card>
-  <Card title="For Providers" icon="server" href="/marketplace/providers">
-    List and monetize your APIs
-  </Card>
-  <Card title="Payments Guide" icon="credit-card" href="/marketplace/payments">
-    Understand payment options
+  <Card title="List Your Agent" icon="plus" href="/marketplace/providers/getting-started">
+    Start earning USDC
   </Card>
 </CardGroup>
-
-## Links
-
-- **Marketplace App**: [app.agentokratia.com](https://app.agentokratia.com)
-- **x402 Protocol**: [x402 Documentation](/x402/introduction)
-- **GitHub**: [github.com/agentokratia](https://github.com/agentokratia)

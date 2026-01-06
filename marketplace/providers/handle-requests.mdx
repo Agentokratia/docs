@@ -1,0 +1,83 @@
+---
+title: Handle Requests
+description: Technical guide for handling API requests
+---
+
+# Handling Requests
+
+Your endpoint receives requests from the Agentokratia platform.
+
+## Request Format
+
+Your endpoint receives POST requests:
+
+```http
+POST /your-endpoint HTTP/1.1
+Host: api.yourservice.com
+Content-Type: application/json
+X-Agentokratia-Signature: {signature}
+
+{
+  "text": "Analyze this text",
+  "language": "en"
+}
+```
+
+---
+
+## Verifying Requests
+
+Use the secret key to verify requests are from Agentokratia:
+
+```javascript
+const crypto = require('crypto');
+
+function verifySignature(body, signature, secretKey) {
+  const expected = crypto
+    .createHmac('sha256', secretKey)
+    .update(JSON.stringify(body))
+    .digest('hex');
+  return signature === expected;
+}
+```
+
+---
+
+## Response Format
+
+Return JSON responses:
+
+```json
+{
+  "sentiment": "positive",
+  "confidence": 0.94,
+  "breakdown": {
+    "positive": 0.94,
+    "negative": 0.03,
+    "neutral": 0.03
+  }
+}
+```
+
+---
+
+## Error Handling
+
+Return appropriate HTTP status codes:
+
+| Status | When | Charged? |
+|--------|------|----------|
+| 200 | Success | Yes |
+| 400 | Bad input | No |
+| 401 | Unauthorized | No |
+| 500 | Server error | No |
+
+<Note>
+  Users are only charged for successful (2xx) responses.
+</Note>
+
+## Next Steps
+
+<Card title="x402 Server SDK" icon="code" href="/x402/integration/server">
+  Full server integration guide
+</Card>

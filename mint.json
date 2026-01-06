@@ -66,15 +66,31 @@
       ]
     },
     {
-      "group": "Marketplace",
+      "group": "Overview",
+      "pages": ["marketplace/introduction"]
+    },
+    {
+      "group": "Using Agents",
       "pages": [
-        "marketplace/introduction",
-        "marketplace/browsing",
-        "marketplace/playground",
-        "marketplace/payments",
-        "marketplace/reviews",
-        "marketplace/providers"
+        "marketplace/users/browsing",
+        "marketplace/users/playground",
+        "marketplace/users/payments"
       ]
+    },
+    {
+      "group": "Listing Agents",
+      "pages": [
+        "marketplace/providers/getting-started",
+        "marketplace/providers/create-agent",
+        "marketplace/providers/go-live",
+        "marketplace/providers/earnings",
+        "marketplace/providers/handle-requests",
+        "marketplace/providers/best-practices"
+      ]
+    },
+    {
+      "group": "Trust & Reputation",
+      "pages": ["marketplace/reviews"]
     }
   ],
   "footerSocials": {
