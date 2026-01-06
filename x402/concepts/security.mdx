@@ -123,13 +123,39 @@ All endpoints are rate-limited:
 | `session_expired` | Past authorization expiry | Create new session |
 | `insufficient_balance` | Not enough balance | Top up or create new session |
 
-## Auditing
+## Smart Contract Architecture
 
-<Note>
-  The x402 escrow smart contracts have been audited. Contact us for audit reports.
-</Note>
+The escrow system is built on [Base's Commerce Payments Protocol](https://blog.base.dev/commerce-payments-protocol), a battle-tested payment infrastructure.
 
-### Contract Addresses
+### AuthCaptureEscrow Contract
+
+The core escrow logic lives in the `AuthCaptureEscrow` contract:
+
+<Card title="View Source Code" icon="github" href="https://github.com/base/commerce-payments/blob/main/src/AuthCaptureEscrow.sol">
+  Open-source, auditable smart contract
+</Card>
+
+**Key Security Features:**
+
+| Feature | Implementation |
+|---------|----------------|
+| Reentrancy Protection | `ReentrancyGuardTransient` modifier |
+| Access Control | Role-based (operator, payer) sender validation |
+| Time Bounds | Enforced expiry windows (preApproval → authorization → refund) |
+| Amount Safety | `uint120` overflow protection, balance verification |
+| Fee Constraints | Min/max basis points validation |
+
+### Contract Functions
+
+| Function | Who Calls | Purpose |
+|----------|-----------|---------|
+| `authorize()` | Operator | Deposit payer funds into escrow |
+| `capture()` | Operator | Release funds to receiver (supports partial) |
+| `void()` | Operator | Cancel auth, return all funds to payer |
+| `reclaim()` | Payer | Retrieve uncaptured funds after expiry |
+| `refund()` | Operator | Return captured funds to payer |
+
+## Contract Addresses
 
 <Warning>
   **Currently Base Sepolia only.** The facilitator is currently deployed on Base Sepolia (testnet). Base Mainnet support coming soon.
@@ -148,3 +174,9 @@ All endpoints are rate-limited:
   | ERC3009 Collector | `0x0E3dF9510De65469c4518d7843919C0B8c7a7757` |
   | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 </Accordion>
+
+## Auditing
+
+<Note>
+  The escrow contracts are based on Base's Commerce Payments Protocol. Contact us for audit reports.
+</Note>

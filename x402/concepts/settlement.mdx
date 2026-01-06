@@ -7,6 +7,10 @@ description: How payment capture and settlement works
 
 Settlement is the process of transferring funds from the escrow to the receiver. The facilitator handles this automatically.
 
+<Info>
+The escrow settlement is powered by [Base's Commerce Payments Protocol](https://blog.base.dev/commerce-payments-protocol), implementing the authorize-capture pattern used by traditional payment processors like Stripe and Adyen.
+</Info>
+
 ## Capture Strategy
 
 The facilitator uses a batched capture strategy to minimize gas costs:

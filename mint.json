@@ -54,7 +54,7 @@
     },
     {
       "group": "Resources",
-      "pages": ["x402/pricing", "x402/troubleshooting", "x402/faq"]
+      "pages": ["x402/resources", "x402/pricing", "x402/troubleshooting", "x402/faq"]
     },
     {
       "group": "API Reference",

@@ -251,7 +251,7 @@ sequenceDiagram
     ERC-3009 signatures - no ETH needed for gas
   </Card>
   <Card title="Non-Custodial" icon="shield-check">
-    Escrow funds held in audited smart contract
+    Escrow funds held in open-source smart contract
   </Card>
   <Card title="100% Reclaimable" icon="rotate-left">
     Withdraw unused escrow funds anytime
@@ -260,6 +260,28 @@ sequenceDiagram
     Low fees on Base L2 (mainnet + testnet)
   </Card>
 </CardGroup>
+
+---
+
+## Built on Commerce Payments Protocol
+
+The escrow scheme is built on [Base's Commerce Payments Protocol](https://blog.base.dev/commerce-payments-protocol) - a production-grade payment infrastructure designed for high-volume commerce.
+
+<Card title="AuthCaptureEscrow Smart Contract" icon="github" href="https://github.com/base/commerce-payments/blob/main/src/AuthCaptureEscrow.sol">
+  View the open-source smart contract on GitHub
+</Card>
+
+The protocol implements a two-phase commit pattern (authorize → capture) that mirrors traditional payment systems:
+
+| Operation | Description |
+|-----------|-------------|
+| **authorize** | User deposits funds into escrow (like a credit card hold) |
+| **capture** | Facilitator releases funds to receiver (partial captures supported) |
+| **void** | Cancel authorization, return all funds to user |
+| **reclaim** | User retrieves uncaptured funds after expiry |
+| **refund** | Receiver returns previously captured funds |
+
+This architecture enables instant off-chain verification while maintaining on-chain security guarantees.
 
 ---
 

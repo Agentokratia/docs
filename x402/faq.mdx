@@ -99,10 +99,12 @@ This is actually a benefit for API providers - no chargeback fraud risk.
 
 ### Is the escrow contract audited?
 
-The escrow contract is built on established patterns:
-- ERC-3009 for gasless approvals
-- Time-locked escrow with explicit authorization windows
-- Open source and verifiable on Basescan
+The escrow contract is built on [Base's Commerce Payments Protocol](https://blog.base.dev/commerce-payments-protocol), a production-grade payment infrastructure:
+
+- **Open source**: [View the smart contract on GitHub](https://github.com/base/commerce-payments/blob/main/src/AuthCaptureEscrow.sol)
+- **ERC-3009**: Gasless approvals via `transferWithAuthorization`
+- **Time-locked**: Explicit authorization windows with enforced expiry
+- **Battle-tested**: Based on patterns used in traditional payment processing
 
 <Note>
   Formal audit documentation will be published before mainnet launch.
