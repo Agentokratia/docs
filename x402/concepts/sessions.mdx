@@ -1,261 +1,289 @@
 ---
-title: Sessions
-description: How escrow sessions work in x402
+title: Token Selection
+description: How clients choose which token to pay with
 ---
 
-# Sessions
+# Token Selection
 
-Sessions are the core concept of x402 escrow payments. They allow users to authorize a deposit once and make many API calls without additional signatures or gas fees.
-
-## Architecture Overview
-
-```mermaid
-sequenceDiagram
-    participant User as User App
-    participant API as Your API
-    participant Fac as Facilitator
-    participant Chain as Base Chain
-
-    User->>API: 1. First Request
-    API-->>User: 402 Payment Required
-
-    Note over User: 2. User signs ERC-3009<br/>(wallet popup)
-
-    User->>API: 3. Retry with payment
-    API->>Fac: Verify payment
-    Fac-->>API: Create session
-    API-->>User: 200 OK + session
-
-    Note over User,API: 4. Subsequent requests (instant, no signature)
-    User->>API: Request + session.token
-    API->>Fac: Verify + charge
-    Fac-->>API: Valid
-    API-->>User: 200 OK
-
-    Note over Fac,Chain: 5. Facilitator batches captures
-    Fac->>Chain: Transfer USDC on-chain
-    Chain-->>Fac: Confirmed
-
-    Note over User,Chain: 6. User reclaims unused
-    Fac->>Chain: Void session
-    Chain-->>User: Return funds
-```
-
-<Note>
-  User only signs **once** (step 2). All subsequent requests (step 4) are instant with no wallet interaction.
-</Note>
+When a server accepts multiple tokens (via the escrow scheme), clients need to choose which token to use for payment. The SDK provides automatic selection based on balances and preferences.
 
 ## Overview
 
-A session represents a pre-authorized pool of funds that can be used for multiple API calls:
-
-| Property | Description |
-| -------- | ----------- |
-| **Deposit** | One-time ERC-3009 authorization |
-| **Usage** | Off-chain, instant, no gas |
-| **Balance** | Tracked by facilitator |
-| **Reclaim** | Available anytime |
-
-## Session Lifecycle
-
 ```mermaid
-stateDiagram-v2
-    [*] --> Active: Create Session
-    Active --> Active: Use Session
-    Active --> Expired: Authorization Expires
-    Active --> Voided: User Reclaims
-    Active --> Captured: Facilitator Captures
-    Expired --> [*]
-    Voided --> [*]
-    Captured --> [*]
+sequenceDiagram
+    participant Client
+    participant Server
+    participant Blockchain
+
+    Client->>Server: Request resource
+    Server-->>Client: 402 + payment options (USDC, WETH, DAI, USDT)
+
+    Note over Client: Token Selection
+    Client->>Blockchain: Check USDC balance
+    Client->>Blockchain: Check WETH balance
+    Client->>Client: Pick first affordable token
+
+    Client->>Client: Sign payment
+    Client->>Server: Request + signature
 ```
 
-### States
+## Selection Strategies
 
-| State | Description |
-| ----- | ----------- |
-| `active` | Session is usable, balance available |
-| `expired` | Authorization period ended |
-| `voided` | User reclaimed remaining funds |
-| `captured` | All funds captured by receiver |
+### Balance-Aware Selection (Recommended)
 
-## Session Creation Payload
-
-When creating a session, the client sends:
+Use `createBalanceSelector` to automatically check on-chain balances and pick the first token the user can afford:
 
 ```typescript
-{
-  x402Version: 2,
-  accepted: PaymentRequirements,  // Echo back accepted requirements
-  payload: {
-    signature: string,            // ERC-3009 transferWithAuthorization signature
-    authorization: {
-      from: string,               // Payer wallet address
-      to: string,                 // Token collector address
-      value: string,              // Deposit amount in atomic units
-      validAfter: string,         // "0" (immediate validity)
-      validBefore: string,        // Unix timestamp as string
-      nonce: string,              // Computed from escrow parameters
-    },
-    sessionParams: {
-      salt: string,               // Random bytes32 hex
-      authorizationExpiry: number, // Unix timestamp
-      refundExpiry: number,       // Unix timestamp
-    },
-    requestId: string,            // UUID for idempotency
-  },
-}
-```
+import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
+import { ExactEvmScheme } from '@x402/evm/exact/client';
+import { createWalletClient, createPublicClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { base } from 'viem/chains';
+import {
+  EscrowScheme,
+  createBalanceSelector,
+} from '@agentokratia/x402-escrow/client';
 
-## Session Usage Payload
+const account = privateKeyToAccount(process.env.PRIVATE_KEY);
 
-For subsequent requests, the client sends:
-
-```typescript
-{
-  x402Version: 2,
-  accepted: PaymentRequirements,
-  payload: {
-    session: {
-      id: string,             // From creation response
-      token: string,          // SECRET from creation response
-    },
-    requestId: string,        // Idempotency key
-    amount: string,           // Payment amount for this request
-  },
-}
-```
-
-## Session Token
-
-The session token is a critical security component:
-
-<Warning>
-  The session token is returned **only once** at creation. Store it securely - it cannot be retrieved again.
-</Warning>
-
-- 256-bit cryptographically random value
-- Stored as bcrypt hash by facilitator
-- Required for all session operations
-- Prevents unauthorized session access
-
-## Balance Tracking
-
-Session balances are tracked with four values:
-
-| Balance | Description |
-| ------- | ----------- |
-| `authorized` | Total deposit amount |
-| `captured` | Already transferred to receiver |
-| `pending` | Owed to receiver, not yet captured |
-| `available` | Can be used for new requests |
-
-**Formula:** `available = authorized - captured - pending`
-
-## Example Flow
-
-<Steps>
-  <Step title="User deposits $10 USDC">
-    Signs ERC-3009 authorization for $10
-  </Step>
-  <Step title="Session created">
-    `authorized: $10, available: $10`
-  </Step>
-  <Step title="API call for $0.05">
-    `available: $9.95, pending: $0.05`
-  </Step>
-  <Step title="More API calls">
-    `available: $8.00, pending: $2.00`
-  </Step>
-  <Step title="Facilitator batch captures">
-    `available: $8.00, captured: $2.00, pending: $0`
-  </Step>
-  <Step title="User reclaims">
-    Receives $8.00 back, receiver got $2.00
-  </Step>
-</Steps>
-
-## Session Selection
-
-When you call `escrowFetch(url)`, the SDK automatically selects which session to use:
-
-### Selection Algorithm
-
-```
-1. Find all sessions for the target receiver (payTo address)
-2. Filter to only "active" sessions (not expired, voided, or captured)
-3. Filter to sessions with balance >= required amount
-4. Select the session with the HIGHEST available balance
-5. If no valid session found → create new session (triggers wallet signature)
-```
-
-### Examples
-
-```typescript
-// Scenario: User has 3 sessions to api.example.com
-// Session A: $5.00 balance
-// Session B: $2.00 balance
-// Session C: $0.50 balance
-
-// Request costs $0.01
-await escrowFetch('https://api.example.com/premium');
-// → Uses Session A ($5.00 - highest balance)
-
-// Request costs $3.00
-await escrowFetch('https://api.example.com/expensive');
-// → Uses Session A (only one with enough balance)
-
-// Request costs $10.00
-await escrowFetch('https://api.example.com/bulk');
-// → Creates NEW session (no existing session has $10)
-// → User sees wallet signature popup
-```
-
-### Forcing Session Behavior
-
-```typescript
-// Auto-select (default)
-await escrowFetch(url);
-await escrowFetch(url, { session: 'auto' });
-
-// Force new session (ignores existing sessions)
-await escrowFetch(url, { session: 'new' });
-
-// Use specific session by ID
-await escrowFetch(url, { session: 'session-abc-123' });
-```
-
-<Note>
-  When forcing a specific session with insufficient balance, the request will fail with `insufficient_balance` error.
-</Note>
-
-### Multiple APIs, Multiple Sessions
-
-Sessions are scoped to the **receiver address** (`payTo`), not the URL:
-
-```typescript
-// These use the SAME session pool (same payTo address)
-await escrowFetch('https://api.example.com/endpoint-a');
-await escrowFetch('https://api.example.com/endpoint-b');
-
-// This uses a DIFFERENT session pool (different payTo address)
-await escrowFetch('https://other-api.com/endpoint');
-```
-
-### Storage Behavior
-
-| Storage | Behavior |
-|---------|----------|
-| `'memory'` (default) | Sessions lost on page refresh/app restart |
-| `'localStorage'` | Sessions persist across page reloads |
-
-```typescript
-// Persist sessions across browser sessions
-const { fetch: escrowFetch } = createEscrowFetch(walletClient, {
-  storage: 'localStorage',
+const walletClient = createWalletClient({
+  account, chain: base, transport: http(),
 });
+
+const publicClient = createPublicClient({
+  chain: base, transport: http(),
+});
+
+// Balance-aware selection
+const client = new x402Client(
+  createBalanceSelector(publicClient, account.address)
+)
+  .register('eip155:8453', new ExactEvmScheme(account))
+  .register('eip155:8453', new EscrowScheme(walletClient));
+
+const paidFetch = wrapFetchWithPayment(fetch, client);
 ```
 
-<Warning>
-  With `'memory'` storage, users will need to sign a new session after every page refresh. Use `'localStorage'` for better UX in browser apps.
-</Warning>
+### Token Preference Policy
+
+Use `preferTokenPolicy` to set a preferred order. Combined with balance checking, the client will use your preferred token if the user can afford it:
+
+```typescript
+import { preferTokenPolicy } from '@agentokratia/x402-escrow/client';
+
+const WETH = '0x4200000000000000000000000000000000000006';
+const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const DAI = '0x50c5725949a6f0c72e6c4a641f24049a917db0cb';
+
+const client = new x402Client(
+  createBalanceSelector(publicClient, account.address)
+)
+  .register('eip155:8453', new ExactEvmScheme(account))
+  .register('eip155:8453', new EscrowScheme(walletClient))
+  .registerPolicy(preferTokenPolicy([WETH, USDC, DAI]));
+```
+
+This configuration:
+1. Reorders payment options to prefer WETH first, then USDC, then DAI
+2. Checks balances for each in order
+3. Picks the first one the user can afford
+
+### Manual Balance Checking
+
+For custom logic, use `checkBalance` directly:
+
+```typescript
+import { checkBalance } from '@agentokratia/x402-escrow/client';
+
+const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const requiredAmount = BigInt('1000000'); // $1 USDC
+
+const canAfford = await checkBalance(
+  publicClient,
+  account.address,
+  USDC,
+  requiredAmount
+);
+
+if (canAfford) {
+  console.log('User can pay with USDC');
+} else {
+  console.log('User needs more USDC');
+}
+```
+
+## Selection Algorithm
+
+When `createBalanceSelector` is used, the selection works as follows:
+
+```
+1. Receive payment options from server (e.g., USDC, WETH, DAI, USDT)
+2. Apply preferTokenPolicy (if registered) to reorder options
+3. For each option in order:
+   a. Check on-chain balance
+   b. If balance >= required amount, select this token
+4. If no token has sufficient balance, throw error
+```
+
+## Example Scenarios
+
+### Scenario 1: User has USDC only
+
+```
+Server offers: [USDC, WETH, DAI, USDT]
+User balances: USDC=$50, WETH=0, DAI=0, USDT=0
+Required: $1
+
+Result: USDC selected (first with sufficient balance)
+```
+
+### Scenario 2: User has WETH, prefers it
+
+```
+Server offers: [USDC, WETH, DAI, USDT]
+Policy: preferTokenPolicy([WETH, USDC])
+After reorder: [WETH, USDC, DAI, USDT]
+User balances: USDC=$50, WETH=$100, DAI=0, USDT=0
+Required: $1
+
+Result: WETH selected (preferred and has balance)
+```
+
+### Scenario 3: User prefers WETH but doesn't have enough
+
+```
+Server offers: [USDC, WETH, DAI, USDT]
+Policy: preferTokenPolicy([WETH, USDC])
+After reorder: [WETH, USDC, DAI, USDT]
+User balances: USDC=$50, WETH=$0.50, DAI=0, USDT=0
+Required: $1
+
+Result: USDC selected (WETH insufficient, falls back to USDC)
+```
+
+## Browser vs Node.js
+
+### Browser (with wagmi)
+
+```typescript
+import { useWalletClient, usePublicClient, useAccount } from 'wagmi';
+import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
+import { ExactEvmScheme } from '@x402/evm/exact/client';
+import {
+  EscrowScheme,
+  createBalanceSelector,
+} from '@agentokratia/x402-escrow/client';
+
+function PaymentComponent() {
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+  const { address } = useAccount();
+
+  const pay = async () => {
+    if (!walletClient || !publicClient || !address) return;
+
+    const signer = {
+      address,
+      signTypedData: (msg) => walletClient.signTypedData({
+        account: walletClient.account,
+        ...msg
+      }),
+    };
+
+    const client = new x402Client(
+      createBalanceSelector(publicClient, address)
+    )
+      .register('eip155:8453', new ExactEvmScheme(signer))
+      .register('eip155:8453', new EscrowScheme(walletClient));
+
+    const paidFetch = wrapFetchWithPayment(fetch, client);
+    const response = await paidFetch('https://api.example.com/premium');
+  };
+
+  return <button onClick={pay}>Pay</button>;
+}
+```
+
+### Node.js (with private key)
+
+```typescript
+import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
+import { ExactEvmScheme } from '@x402/evm/exact/client';
+import { createWalletClient, createPublicClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { base } from 'viem/chains';
+import {
+  EscrowScheme,
+  createBalanceSelector,
+  preferTokenPolicy,
+} from '@agentokratia/x402-escrow/client';
+
+const WETH = '0x4200000000000000000000000000000000000006';
+const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+
+const account = privateKeyToAccount(process.env.PRIVATE_KEY);
+
+const walletClient = createWalletClient({
+  account, chain: base, transport: http(),
+});
+
+const publicClient = createPublicClient({
+  chain: base, transport: http(),
+});
+
+const client = new x402Client(
+  createBalanceSelector(publicClient, account.address)
+)
+  .register('eip155:8453', new ExactEvmScheme(account))
+  .register('eip155:8453', new EscrowScheme(walletClient))
+  .registerPolicy(preferTokenPolicy([WETH, USDC]));
+
+const paidFetch = wrapFetchWithPayment(fetch, client);
+
+const response = await paidFetch('https://api.example.com/premium');
+```
+
+## API Reference
+
+### createBalanceSelector
+
+```typescript
+function createBalanceSelector(
+  publicClient: PublicClient,
+  address: Address
+): AsyncAcceptSelector;
+```
+
+Creates an async selector that checks on-chain token balances.
+
+### preferTokenPolicy
+
+```typescript
+function preferTokenPolicy(
+  tokens: Address[]
+): SyncAcceptPolicy;
+```
+
+Creates a sync policy that reorders payment options by token preference.
+
+### checkBalance
+
+```typescript
+function checkBalance(
+  publicClient: PublicClient,
+  address: Address,
+  token: Address,
+  amount: bigint
+): Promise<boolean>;
+```
+
+Checks if an address has at least `amount` of the specified token.
+
+<CardGroup cols={2}>
+  <Card title="Payment Schemes" icon="code-compare" href="/x402/concepts/schemes">
+    Learn about exact vs escrow schemes
+  </Card>
+  <Card title="Client Guide" icon="laptop" href="/x402/integration/client">
+    Full client SDK documentation
+  </Card>
+</CardGroup>

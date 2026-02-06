@@ -1,34 +1,41 @@
 ---
 title: Security
-description: Security model and best practices for x402 escrow
+description: Security model and best practices for x402 payments
 ---
 
 # Security
 
-The x402 escrow system is designed with security as a primary concern. This page covers the security model and best practices.
+The x402 payment system is designed with security as a primary concern. This page covers the security model and best practices.
 
 ## Security Model
 
-### Session Token Security
+### Signature-Based Authorization
 
-<Warning>
-  Session tokens are secrets. Treat them like API keys or passwords.
-</Warning>
+All payments are authorized via cryptographic signatures:
 
-| Property | Implementation |
-| -------- | -------------- |
-| Generation | 256-bit cryptographically random |
-| Storage | bcrypt hash (cost factor 10) |
-| Transmission | HTTPS only, shown once |
-| Validation | Constant-time comparison |
+| Scheme | Signature Type | Properties |
+| ------ | -------------- | ---------- |
+| exact | ERC-3009 | Gasless USDC transfer authorization |
+| escrow (USDC) | ERC-3009 | Gasless USDC transfer authorization |
+| escrow (other) | Permit2 | Universal token approval |
 
 ### ERC-3009 Authorization
 
-Escrow sessions use ERC-3009 `transferWithAuthorization`:
+For USDC payments:
 
-- **Replay protection:** Nonces are derived from payment info hash
+- **Replay protection:** Nonces are derived deterministically from payment parameters
 - **Time-bounded:** `validAfter` and `validBefore` constraints
 - **Receiver-locked:** Authorization tied to specific receiver
+- **Gasless:** User only signs, facilitator pays gas
+
+### Permit2 Authorization
+
+For non-USDC tokens (WETH, DAI, USDT):
+
+- **Universal:** Works with any ERC-20 token
+- **Time-bounded:** `deadline` constraint
+- **Amount-specific:** Exact amount authorized
+- **Gasless:** User only signs, facilitator pays gas
 
 ### Rate Limiting
 
@@ -37,39 +44,47 @@ All endpoints are rate-limited:
 | Endpoint | Limit |
 | -------- | ----- |
 | `/api/verify`, `/api/settle` | 1000/min per API key |
+| `/api/quote` | 100/min per IP |
 | Auth endpoints | 10/min per IP |
-| Session management | 100/min per user |
-| Reclaim operations | 10/min per wallet |
 
 ## Attack Vectors & Mitigations
 
-### Session Token Theft
-
-**Risk:** Attacker obtains session token and drains balance
-
-**Mitigations:**
-- Tokens shown only once at creation
-- HTTPS required for all communications
-- Sessions can be voided by owner
-- Expiry limits exposure window
-
 ### Replay Attacks
 
-**Risk:** Attacker replays valid payment payload
+**Risk:** Attacker replays valid payment signature
 
 **Mitigations:**
-- Each request has unique `requestId`
-- Facilitator tracks processed requests
+- Each payment has a unique nonce derived from parameters
+- Facilitator tracks settled payments
+- Same signature cannot be settled twice
 - Idempotency built into protocol
 
-### Authorization Expiry Racing
+### Signature Forgery
 
-**Risk:** Facilitator fails to capture before expiry
+**Risk:** Attacker creates fake payment signature
 
 **Mitigations:**
-- Sync capture when expiry < 30min
-- Cron job captures when expiry < 2h
-- Monitoring and alerts on pending amounts
+- EIP-712 typed data prevents signature reuse across contexts
+- Domain separator includes chain ID and contract address
+- Only the wallet owner can produce valid signatures
+
+### Man-in-the-Middle
+
+**Risk:** Attacker intercepts payment between client and server
+
+**Mitigations:**
+- HTTPS required for all communications
+- Payment signature is cryptographically bound to payment parameters
+- Changing any parameter invalidates the signature
+
+### Insufficient Balance
+
+**Risk:** User signs payment but lacks balance at settlement time
+
+**Mitigations:**
+- Facilitator verifies on-chain balance before settling
+- Payment fails gracefully with `insufficient_balance` error
+- No funds transferred if balance check fails
 
 ## Best Practices
 
@@ -97,10 +112,10 @@ All endpoints are rate-limited:
 ### For Client Applications
 
 <AccordionGroup>
-  <Accordion title="Session Token Management" icon="database">
-    - Store tokens securely (encrypted storage)
-    - Clear tokens on logout
-    - Handle token expiry gracefully
+  <Accordion title="Balance Checking" icon="coins">
+    - Use `createBalanceSelector` to check balances before signing
+    - Handle insufficient balance gracefully
+    - Show clear error messages to users
   </Accordion>
   <Accordion title="HTTPS Enforcement" icon="lock">
     - Only communicate over HTTPS
@@ -108,9 +123,9 @@ All endpoints are rate-limited:
     - Implement certificate pinning for mobile
   </Accordion>
   <Accordion title="User Communication" icon="user">
-    - Show clear deposit amounts
-    - Display available balance
-    - Provide easy reclaim functionality
+    - Show clear payment amounts before signing
+    - Display which token will be used
+    - Confirm successful payments
   </Accordion>
 </AccordionGroup>
 
@@ -118,65 +133,51 @@ All endpoints are rate-limited:
 
 | Code | Meaning | Action |
 | ---- | ------- | ------ |
-| `invalid_signature` | ERC-3009 signature failed | Retry with fresh signature |
-| `invalid_session_token` | Wrong session token | Use correct token or create new session |
-| `session_expired` | Past authorization expiry | Create new session |
-| `insufficient_balance` | Not enough balance | Top up or create new session |
+| `invalid_signature` | Signature verification failed | Ensure correct signing parameters |
+| `insufficient_balance` | User doesn't have enough tokens | Check balance, try different token |
+| `quote_expired` | Swap quote expired | Retry to get fresh quote |
+| `nonce_already_used` | Payment already settled | Idempotent - same result returned |
 
 ## Smart Contract Architecture
 
-The escrow system is built on [Base's Commerce Payments Protocol](https://blog.base.dev/commerce-payments-protocol), a battle-tested payment infrastructure.
+### Contract Addresses
 
-### AuthCaptureEscrow Contract
+**Base Mainnet (Production)**
 
-The core escrow logic lives in the `AuthCaptureEscrow` contract:
+| Contract | Address |
+| -------- | ------- |
+| AuthCaptureEscrow | [`0xA969a17210C80EC60FFEA6b03F4E5624B9Fb92A8`](https://basescan.org/address/0xA969a17210C80EC60FFEA6b03F4E5624B9Fb92A8) |
+| ERC3009PaymentCollector | [`0x1f609D30a829a73Cd08FA822C312F85C9eAE1c42`](https://basescan.org/address/0x1f609D30a829a73Cd08FA822C312F85C9eAE1c42) |
+| Permit2PaymentCollector | [`0x4abafB47f9d7F6A397D0F1F6fa866F1DC568E07D`](https://basescan.org/address/0x4abafB47f9d7F6A397D0F1F6fa866F1DC568E07D) |
+| SwapCollector | [`0xd06E9a72a12840C682C6F95B50d04cfD0F6F3292`](https://basescan.org/address/0xd06E9a72a12840C682C6F95B50d04cfD0F6F3292) |
+| USDC | [`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`](https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) |
 
-<Card title="View Source Code" icon="github" href="https://github.com/base/commerce-payments/blob/main/src/AuthCaptureEscrow.sol">
-  Open-source, auditable smart contract
-</Card>
+**Base Sepolia (Testnet)**
 
-**Key Security Features:**
+| Contract | Address |
+| -------- | ------- |
+| AuthCaptureEscrow | [`0xd4840109f8c62D3dD48Bc813eAc1fFCe200bF0Ab`](https://sepolia.basescan.org/address/0xd4840109f8c62D3dD48Bc813eAc1fFCe200bF0Ab) |
+| ERC3009PaymentCollector | [`0x95e266fD447F0d0C557a826ae1f9fB2df1828e3C`](https://sepolia.basescan.org/address/0x95e266fD447F0d0C557a826ae1f9fB2df1828e3C) |
+| Permit2PaymentCollector | [`0x9099d8AA2694c5A64dFB6421FE64Cf3BdE3464CB`](https://sepolia.basescan.org/address/0x9099d8AA2694c5A64dFB6421FE64Cf3BdE3464CB) |
+| SwapCollector | [`0x84d9B8a09207a8D2085beAB71D3Dc27a71D2a466`](https://sepolia.basescan.org/address/0x84d9B8a09207a8D2085beAB71D3Dc27a71D2a466) |
+| USDC | [`0x036CbD53842c5426634e7929541eC2318f3dCF7e`](https://sepolia.basescan.org/address/0x036CbD53842c5426634e7929541eC2318f3dCF7e) |
+
+### Contract Security Features
+
+The contracts are built on [Base's Commerce Payments Protocol](https://blog.base.dev/commerce-payments-protocol):
 
 | Feature | Implementation |
 |---------|----------------|
 | Reentrancy Protection | `ReentrancyGuardTransient` modifier |
-| Access Control | Role-based (operator, payer) sender validation |
-| Time Bounds | Enforced expiry windows (preApproval → authorization → refund) |
-| Amount Safety | `uint120` overflow protection, balance verification |
-| Fee Constraints | Min/max basis points validation |
+| Access Control | Role-based sender validation |
+| Amount Safety | Overflow protection, balance verification |
 
-### Contract Functions
-
-| Function | Who Calls | Purpose |
-|----------|-----------|---------|
-| `authorize()` | Operator | Deposit payer funds into escrow |
-| `capture()` | Operator | Release funds to receiver (supports partial) |
-| `void()` | Operator | Cancel auth, return all funds to payer |
-| `reclaim()` | Payer | Retrieve uncaptured funds after expiry |
-| `refund()` | Operator | Return captured funds to payer |
-
-## Contract Addresses
-
-<Warning>
-  **Currently Base Sepolia only.** The facilitator is currently deployed on Base Sepolia (testnet). Base Mainnet support coming soon.
-</Warning>
-
-| Network | Contract | Address |
-| ------- | -------- | ------- |
-| Base Sepolia | AuthCaptureEscrow | [`0xbDEa0d1BCc5966192b070fDF62ab4eF5B4420Cff`](https://sepolia.basescan.org/address/0xbDEa0d1BCc5966192b070fDF62ab4eF5B4420Cff) |
-| Base Sepolia | ERC3009 Collector | [`0x0E3dF9510De65469c4518d7843919C0B8c7a7757`](https://sepolia.basescan.org/address/0x0E3dF9510De65469c4518d7843919C0B8c7a7757) |
-| Base Sepolia | USDC | [`0x036CbD53842c5426634e7929541eC2318f3dCF7e`](https://sepolia.basescan.org/address/0x036CbD53842c5426634e7929541eC2318f3dCF7e) |
-
-<Accordion title="Base Mainnet addresses (coming soon)">
-  | Contract | Address |
-  | -------- | ------- |
-  | AuthCaptureEscrow | `0xbDEa0d1BCc5966192b070fDF62ab4eF5B4420Cff` |
-  | ERC3009 Collector | `0x0E3dF9510De65469c4518d7843919C0B8c7a7757` |
-  | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
-</Accordion>
+<Card title="View Source Code" icon="github" href="https://github.com/base/commerce-payments">
+  Open-source, auditable smart contracts
+</Card>
 
 ## Auditing
 
 <Note>
-  The escrow contracts are based on Base's Commerce Payments Protocol. Contact us for audit reports.
+  The contracts are based on Base's Commerce Payments Protocol. Contact us for audit reports.
 </Note>

@@ -5,7 +5,7 @@ description: Common errors and how to fix them
 
 # Troubleshooting
 
-Solutions to common issues when integrating x402 escrow.
+Solutions to common issues when integrating x402 payments.
 
 ## Client Errors
 
@@ -18,7 +18,7 @@ Solutions to common issues when integrating x402 escrow.
 **Solution:**
 ```typescript
 try {
-  const response = await escrowFetch(url);
+  const response = await paidFetch(url);
 } catch (err) {
   if (err.message?.includes('User rejected') ||
       err.message?.includes('User denied')) {
@@ -32,65 +32,42 @@ try {
 
 ---
 
-### session_expired
-
-**Symptom:** API returns `{ "error": "...", "reason": "session_expired" }`
-
-**Cause:** The session's `authorizationExpiry` timestamp has passed
-
-**Solution:** The SDK automatically creates a new session. If using manual mode:
-```typescript
-// Force new session
-await escrowFetch(url, { session: 'new' });
-```
-
-**Prevention:** Set appropriate session duration:
-```typescript
-const { fetch: escrowFetch } = createEscrowFetch(walletClient, {
-  sessionDuration: 7200, // 2 hours instead of default 1 hour
-});
-```
-
----
-
 ### insufficient_balance
 
 **Symptom:** API returns `{ "reason": "insufficient_balance" }`
 
-**Cause:** Session balance is less than the request amount
+**Cause:** User doesn't have enough of the selected token
 
 **Solution:**
 ```typescript
-// Option 1: Create new session with higher deposit
-await escrowFetch(url, { session: 'new' });
+import { checkBalance } from '@agentokratia/x402-escrow/client';
 
-// Option 2: Check balance before request
-const sessions = scheme.sessions.getAllForReceiver(receiverAddress);
-const activeSession = sessions.find(s => s.status === 'active');
-if (BigInt(activeSession?.balance || '0') < BigInt(requiredAmount)) {
-  // Prompt user to top up
+// Check balance before request
+const canAfford = await checkBalance(
+  publicClient,
+  account.address,
+  USDC,
+  BigInt(requiredAmount)
+);
+
+if (!canAfford) {
+  showToast('Insufficient balance');
 }
 ```
+
+Or use `createBalanceSelector` which automatically picks a token the user can afford.
 
 ---
 
-### invalid_session_token
+### quote_expired
 
-**Symptom:** API returns `{ "reason": "invalid_session_token" }`
+**Symptom:** API returns `{ "reason": "quote_expired" }`
 
-**Cause:**
-- Session token is corrupted
-- Using wrong token for session ID
-- localStorage was cleared
+**Cause:** The DEX swap quote expired before settlement
 
-**Solution:**
-```typescript
-// Clear stored sessions and create fresh
-if (typeof window !== 'undefined') {
-  localStorage.removeItem('x402-sessions');
-}
-await escrowFetch(url, { session: 'new' });
-```
+**Solution:** The SDK automatically retries with fresh quotes. If persisting:
+- Check network latency
+- Ensure system clock is accurate
 
 ---
 
@@ -115,18 +92,17 @@ if (currentChainId !== requiredChainId) {
 
 ---
 
-### Insufficient USDC balance
+### Insufficient token balance
 
 **Symptom:** Transaction fails or signature rejected
 
-**Cause:** Wallet doesn't have enough USDC for deposit
+**Cause:** Wallet doesn't have enough of the selected token
 
 **Solution:**
 ```typescript
 import { formatUnits, erc20Abi } from 'viem';
 
-// Check balance before creating session
-const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // Base
+const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 
 const balance = await publicClient.readContract({
   address: USDC_ADDRESS,
@@ -135,9 +111,9 @@ const balance = await publicClient.readContract({
   args: [walletClient.account.address],
 });
 
-const depositAmount = BigInt('10000000'); // $10
-if (balance < depositAmount) {
-  const needed = formatUnits(depositAmount - balance, 6);
+const requiredAmount = BigInt('1000000'); // $1
+if (balance < requiredAmount) {
+  const needed = formatUnits(requiredAmount - balance, 6);
   alert(`Need ${needed} more USDC`);
 }
 ```
@@ -173,22 +149,16 @@ if (balance < depositAmount) {
 
 **Solution:**
 ```typescript
-// Add retry logic
-const x402 = new x402ResourceServer(facilitator)
-  .register('eip155:8453', new EscrowScheme())
+const server = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new ExactEvmScheme())
+  .register('eip155:8453', escrow)
   .onError(async (ctx, error) => {
     if (error.status === 503) {
-      // Log and alert
       console.error('Facilitator unavailable:', error);
-      // Optionally: serve request for free during outage
-      // or return cached response
+      // Optionally serve request for free during outage
     }
   });
 ```
-
-<Note>
-  User funds are safe during outages. They're held in the on-chain escrow contract, not by the facilitator.
-</Note>
 
 ---
 
@@ -221,7 +191,6 @@ app.use('/api', proxy({
   target: 'http://backend',
   changeOrigin: true,
   onProxyReq: (proxyReq, req) => {
-    // Forward payment headers
     if (req.headers['payment-signature']) {
       proxyReq.setHeader('payment-signature', req.headers['payment-signature']);
     }
@@ -233,34 +202,19 @@ app.use('/api', proxy({
 
 ## Debugging Tips
 
-### Enable debug logging
+### Check token balances
 
 ```typescript
-// Client-side
-const { fetch: escrowFetch, x402 } = createEscrowFetch(walletClient);
+import { checkBalance } from '@agentokratia/x402-escrow/client';
 
-x402.onBeforePaymentCreation(async (ctx) => {
-  console.log('[x402] Payment required:', ctx.paymentRequirements);
-});
+const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const WETH = '0x4200000000000000000000000000000000000006';
 
-x402.onAfterPaymentCreation(async (ctx) => {
-  console.log('[x402] Payment created:', ctx.paymentPayload);
-});
-```
+const hasUSDC = await checkBalance(publicClient, address, USDC, amount);
+const hasWETH = await checkBalance(publicClient, address, WETH, amount);
 
-### Check session state
-
-```typescript
-// Inspect stored sessions
-const { scheme } = createEscrowFetch(walletClient, { storage: 'localStorage' });
-
-const allSessions = scheme.sessions.getAllForReceiver('0xReceiverAddress');
-console.log('Sessions:', allSessions.map(s => ({
-  id: s.sessionId,
-  balance: s.balance,
-  status: s.status,
-  expiresAt: new Date(s.authorizationExpiry * 1000),
-})));
+console.log('Can pay with USDC:', hasUSDC);
+console.log('Can pay with WETH:', hasWETH);
 ```
 
 ### Inspect HTTP headers
@@ -270,6 +224,14 @@ console.log('Sessions:', allSessions.map(s => ({
 curl -v https://api.example.com/protected-endpoint \
   -H "Payment-Signature: base64encodedpayload..."
 ```
+
+### Verify facilitator connectivity
+
+```bash
+curl https://facilitator.agentokratia.com/api/supported
+```
+
+Should return supported networks and tokens.
 
 ---
 

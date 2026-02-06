@@ -1,25 +1,25 @@
 ---
 title: FAQ
-description: Frequently asked questions about x402 escrow
+description: Frequently asked questions about x402 payments
 ---
 
 # Frequently Asked Questions
 
-Quick answers to common questions about x402 escrow payments.
+Quick answers to common questions about x402 payments.
 
 ## Costs & Fees
 
 ### How much gas does this cost?
 
-**Users pay $0 in gas.** The system uses ERC-3009 `transferWithAuthorization` signatures, which are completely gasless for users.
+**Users pay $0 in gas.** The system uses ERC-3009 and Permit2 signatures, which are completely gasless for users.
 
 | Who | Gas Cost |
 |-----|----------|
 | User (Payer) | $0 - only signs messages |
 | API Provider | $0 - facilitator covers everything |
-| Facilitator | ~$0.01-0.05 per session (covered by facilitator) |
+| Facilitator | ~$0.01-0.05 per payment (covered by facilitator) |
 
-This is one of the main benefits of x402 escrow - users never need ETH for gas.
+This is one of the main benefits of x402 - users never need ETH for gas.
 
 ### Is there a fee on top of payments?
 
@@ -33,24 +33,29 @@ Technically $0.0001 USDC (1/100th of a cent). However, we recommend $0.001+ for 
 
 ## Tokens & Networks
 
-### Can I use this with other tokens besides USDC?
+### What tokens can users pay with?
 
-Currently, **USDC only**. USDC was chosen because:
-- Stable value (no price volatility)
-- Widely held and understood
-- Native support for gasless transfers (ERC-3009)
-- Available on Base with high liquidity
+With the **escrow** scheme, users can pay with:
 
-Other stablecoins may be supported in the future.
+| Token | Address (Base Mainnet) |
+| ----- | ---------------------- |
+| USDC  | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| WETH  | `0x4200000000000000000000000000000000000006` |
+| DAI   | `0x50c5725949a6f0c72e6c4a641f24049a917db0cb` |
+| USDT  | `0xfde4c96c8593536e31f229ea8f37b2ada2699bb2` |
+
+With the **exact** scheme, only USDC is supported.
+
+### What token do I receive as an API provider?
+
+**Always USDC.** Even if users pay with WETH or DAI, the facilitator automatically swaps it to USDC before paying you.
 
 ### Which networks are supported?
 
 | Network | Chain ID | Status |
 |---------|----------|--------|
-| Base Sepolia | 84532 | Live (Testnet) |
-| Base Mainnet | 8453 | Coming Soon |
-
-We chose Base for its low gas costs and Coinbase ecosystem integration.
+| Base Mainnet | 8453 | ✅ Live |
+| Base Sepolia | 84532 | ✅ Live (Testnet) |
 
 ### Can I use this on Ethereum mainnet?
 
@@ -62,106 +67,28 @@ Not currently. Ethereum mainnet gas costs would make small payments impractical.
 
 ### What if the facilitator goes down?
 
-**Your funds are safe.** User deposits are held in the on-chain escrow smart contract, not by the facilitator.
-
 If the facilitator is unavailable:
-1. No new sessions can be created
-2. Existing session charges won't be captured
-3. Users can call `reclaim()` directly on the contract after `authorizationExpiry`
-4. API providers can implement fallback logic (serve for free, use cached responses, etc.)
+1. New payments cannot be processed
+2. API providers can implement fallback logic (serve for free, use cached responses, etc.)
 
 ```typescript
-// Server-side fallback during outage
-x402.onError(async (ctx, error) => {
+server.onError(async (ctx, error) => {
   if (error.status === 503) {
     // Facilitator down - decide how to handle
-    console.log('Facilitator unavailable, serving request for free');
-    return { proceed: true }; // Continue without payment
+    console.log('Facilitator unavailable');
   }
 });
 ```
 
 ### What if I accidentally double-charge a user?
 
-**Impossible by design.** Each request includes a unique `requestId` (UUID). The facilitator enforces idempotency - the same `requestId` can only be charged once.
-
-```typescript
-// These two calls charge only once
-await escrowFetch(url, { requestId: 'request-123' });
-await escrowFetch(url, { requestId: 'request-123' }); // No additional charge
-```
+**Impossible by design.** Each request includes a unique `requestId`. The facilitator enforces idempotency - the same signature can only be settled once.
 
 ### Can users dispute or chargeback payments?
 
-**No chargebacks.** Unlike credit cards, cryptocurrency payments are final. The session token serves as cryptographic proof that the user authorized the payment.
+**No chargebacks.** Unlike credit cards, cryptocurrency payments are final. The signature serves as cryptographic proof that the user authorized the payment.
 
 This is actually a benefit for API providers - no chargeback fraud risk.
-
-### Is the escrow contract audited?
-
-The escrow contract is built on [Base's Commerce Payments Protocol](https://blog.base.dev/commerce-payments-protocol), a production-grade payment infrastructure:
-
-- **Open source**: [View the smart contract on GitHub](https://github.com/base/commerce-payments/blob/main/src/AuthCaptureEscrow.sol)
-- **ERC-3009**: Gasless approvals via `transferWithAuthorization`
-- **Time-locked**: Explicit authorization windows with enforced expiry
-- **Battle-tested**: Based on patterns used in traditional payment processing
-
-<Note>
-  Formal audit documentation will be published before mainnet launch.
-</Note>
-
----
-
-## Sessions & Payments
-
-### How long do sessions last?
-
-Default is **1 hour**, configurable up to 24 hours:
-
-```typescript
-const { fetch: escrowFetch } = createEscrowFetch(walletClient, {
-  sessionDuration: 7200, // 2 hours
-});
-```
-
-After expiry, users can reclaim unused funds.
-
-### What happens to unused funds?
-
-Users get **100% of unused funds back**. After `authorizationExpiry`:
-1. User (or anyone) can call `reclaim()` on the contract
-2. Remaining balance returns to user's wallet
-3. Facilitator captures any pending charges first
-
-### Can I refund a user?
-
-There are two types of "getting money back":
-
-| Type | What it is | How |
-|------|-----------|-----|
-| **Reclaim** | Unused balance (never captured) | User calls `reclaim()` on contract |
-| **Refund** | Already-captured funds | 🔜 Coming soon via API |
-
-**Currently:**
-- Users automatically reclaim unused session balance via contract
-- Refund API coming soon
-
-See [Refund vs Reclaim](/x402/concepts/settlement#refund-vs-reclaim) for details.
-
-### What if a user's session runs out of balance mid-request?
-
-The request will fail with `insufficient_balance`. Handle it gracefully:
-
-```typescript
-const response = await escrowFetch(url);
-if (!response.ok) {
-  const { reason } = await response.json();
-  if (reason === 'insufficient_balance') {
-    // Prompt user to create new session with more funds
-    await escrowFetch(url, { session: 'new' });
-  }
-}
-```
 
 ---
 
@@ -171,7 +98,7 @@ if (!response.ok) {
 
 **Servers:** Yes, to authenticate with the facilitator for verification and settlement.
 
-**Clients:** No, clients just need a wallet to sign sessions.
+**Clients:** No, clients just need a wallet to sign payments.
 
 Get your API key at [facilitator.agentokratia.com](https://facilitator.agentokratia.com).
 
@@ -187,14 +114,14 @@ See our [React example](/x402/integration/client#react-example) for integration 
 
 For **protecting APIs**: Yes, the server SDK works in any Node.js environment.
 
-For **making payments as a client**: You'd need a wallet with a private key. Not recommended for servers due to security implications of storing private keys.
+For **making payments as a client**: Yes, with a private key. Be careful about key security.
 
 ### How do I test without real money?
 
 Use **Base Sepolia testnet**:
 
 1. Get your API key from [facilitator.agentokratia.com](https://facilitator.agentokratia.com) (same key works on all networks)
-2. Get testnet USDC from a faucet
+2. Get testnet USDC from [Circle Faucet](https://faucet.circle.com/)
 3. Configure your app for Sepolia:
 
 ```typescript
@@ -208,15 +135,44 @@ const walletClient = createWalletClient({
 
 ---
 
+## Payments
+
+### How does multi-token payment work?
+
+1. Server calls `buildAccepts()` to get DEX quotes for each supported token
+2. Client receives payment options (USDC, WETH, DAI, USDT)
+3. Client picks a token (manually or via `createBalanceSelector`)
+4. Client signs Permit2 (for non-USDC) or ERC-3009 (for USDC)
+5. Facilitator executes swap and pays receiver in USDC
+
+### What if the swap price changes?
+
+Quotes have a short validity window (typically 60 seconds). If a quote expires:
+- The payment will fail with `quote_expired`
+- The client SDK will automatically retry with fresh quotes
+
+Slippage is typically ~0.5% and is factored into the quote.
+
+### What happens if a payment fails?
+
+No funds are transferred. The user keeps their tokens and can retry.
+
+Common failure reasons:
+- `insufficient_balance` - User doesn't have enough tokens
+- `quote_expired` - Swap quote expired, retry with fresh quote
+- `signature_invalid` - Signature verification failed
+
+---
+
 ## Troubleshooting
 
 ### Why am I getting "User rejected" errors?
 
-The user clicked "Reject" in their wallet's signature prompt. This is expected behavior when users cancel. Handle it gracefully:
+The user clicked "Reject" in their wallet's signature prompt. Handle it gracefully:
 
 ```typescript
 try {
-  await escrowFetch(url);
+  const response = await paidFetch(url);
 } catch (err) {
   if (err.message?.includes('User rejected')) {
     showToast('Transaction cancelled');
@@ -226,25 +182,12 @@ try {
 }
 ```
 
-### Why is my session expired immediately?
-
-Check that your system clock is accurate. Session expiry is based on Unix timestamps. If your clock is significantly off, sessions may appear expired.
-
 ### How do I debug payment issues?
 
-Enable logging with hooks:
-
-```typescript
-const { fetch: escrowFetch, x402 } = createEscrowFetch(walletClient);
-
-x402.onBeforePaymentCreation(async (ctx) => {
-  console.log('[x402] Payment required:', ctx.paymentRequirements);
-});
-
-x402.onAfterPaymentCreation(async (ctx) => {
-  console.log('[x402] Payment created:', ctx.paymentPayload);
-});
-```
+Check the server logs and facilitator response. Common issues:
+- Missing or invalid API key (401)
+- Wrong network configured
+- Insufficient token balance
 
 ---
 

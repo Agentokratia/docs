@@ -5,7 +5,7 @@ description: x402 payment facilitator supporting exact and escrow schemes
 
 # x402 Facilitator
 
-A production-ready x402 facilitator supporting both **exact** (per-request) and **escrow** (session-based) payment schemes.
+A production-ready x402 facilitator supporting both **exact** (USDC-only) and **escrow** (multi-token) payment schemes.
 
 <Info>
 **What is x402?** The HTTP 402 "Payment Required" status code, finally put to use. x402 is a protocol for API monetization using blockchain payments.
@@ -15,14 +15,14 @@ A production-ready x402 facilitator supporting both **exact** (per-request) and 
 
 <CardGroup cols={2}>
   <Card title="exact" icon="receipt" href="/x402/quickstart#exact-scheme-quickstart">
-    **Per-request payments**
+    **USDC-only payments**
 
-    Standard x402. One signature per API call. Simple, no pre-deposit needed.
+    Standard x402. One signature per API call. Simple, USDC only.
   </Card>
   <Card title="escrow" icon="vault" href="/x402/quickstart#escrow-scheme-quickstart">
-    **Session-based payments**
+    **Multi-token payments**
 
-    Sign once, unlimited calls. Ideal for AI agents and high-frequency APIs.
+    Pay with WETH, DAI, USDT. Receiver always gets USDC.
   </Card>
 </CardGroup>
 
@@ -30,12 +30,11 @@ A production-ready x402 facilitator supporting both **exact** (per-request) and 
 
 | | `exact` | `escrow` |
 |---|---------|----------|
-| **Signatures** | Every request | Once per session |
-| **Gas costs** | Per request | Once (session creation) |
-| **Latency** | Higher | Instant |
-| **Pre-deposit** | No | Yes ($5-$100) |
-| **Unused funds** | N/A | 100% reclaimable |
-| **Best for** | Infrequent calls | AI agents, high-frequency |
+| **Input tokens** | USDC only | USDC, WETH, DAI, USDT |
+| **Output token** | USDC | USDC (swapped automatically) |
+| **Signatures** | 1 per request | 1 per request |
+| **Gas for user** | None (gasless) | None (gasless) |
+| **Best for** | Simple USDC payments | Multi-token flexibility |
 
 <Card title="Detailed Scheme Comparison" icon="code-compare" href="/x402/concepts/schemes">
   Learn when to use each scheme
@@ -66,33 +65,33 @@ A production-ready x402 facilitator supporting both **exact** (per-request) and 
 
 ## Quick Start
 
-### exact scheme (per-request)
+### exact scheme (USDC only)
 
 ```bash
-npm install @x402/core @x402/fetch wagmi viem
+npm install @x402/core @x402/fetch @x402/evm viem
 ```
 
 <CodeGroup>
 
-```typescript Client (Browser)
-import { useWalletClient } from 'wagmi';
-import { wrapFetchWithPayment } from '@x402/fetch';
-import { x402Client } from '@x402/core/client';
+```typescript Client
+import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
+import { ExactEvmScheme } from '@x402/evm/exact/client';
+import { privateKeyToAccount } from 'viem/accounts';
 
-// Get walletClient from wagmi (must have account + chain)
-const { data: walletClient } = useWalletClient();
+const account = privateKeyToAccount(process.env.PRIVATE_KEY);
 
-if (walletClient) {
-  const x402 = new x402Client(walletClient);
-  const paidFetch = wrapFetchWithPayment(fetch, x402);
+const client = new x402Client()
+  .register('eip155:8453', new ExactEvmScheme(account));
 
-  // User signs each request
-  const response = await paidFetch('https://api.example.com/premium');
-}
+const paidFetch = wrapFetchWithPayment(fetch, client);
+
+// 402 responses handled automatically
+const response = await paidFetch('https://api.example.com/premium');
 ```
 
 ```typescript Server
 import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
+import { ExactEvmScheme } from '@x402/evm/exact/server';
 import { paymentMiddleware } from '@x402/express';
 
 const facilitator = new HTTPFacilitatorClient({
@@ -100,95 +99,102 @@ const facilitator = new HTTPFacilitatorClient({
   createAuthHeaders: async () => ({
     verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
     settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
-    supported: {},
   }),
 });
 
-const x402 = new x402ResourceServer(facilitator);
+const server = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new ExactEvmScheme());
 
 app.use(paymentMiddleware({
   'GET /api/premium': {
     accepts: { scheme: 'exact', price: '$0.10', network: 'eip155:8453', payTo: '0x...' },
   },
-}, x402));
+}, server));
 ```
 
 </CodeGroup>
 
-### escrow scheme (session-based)
+### escrow scheme (multi-token)
 
 ```bash
-npm install @x402/core @agentokratia/x402-escrow viem
+npm install @x402/core @x402/fetch @x402/evm @agentokratia/x402-escrow viem
 ```
 
 <CodeGroup>
 
-```typescript Client (Browser with wagmi)
-import { useWalletClient } from 'wagmi';
-import { createEscrowFetch } from '@agentokratia/x402-escrow/client';
-
-// Get walletClient from wagmi (must have account + chain)
-const { data: walletClient } = useWalletClient();
-
-if (walletClient) {
-  const { fetch: escrowFetch } = createEscrowFetch(walletClient, {
-    depositAmount: '10000000', // $10 USDC
-  });
-
-  // First call: signs once, creates session
-  await escrowFetch('https://api.example.com/premium');
-
-  // Subsequent calls: instant, no signature
-  await escrowFetch('https://api.example.com/premium');
-}
-```
-
-```typescript Client (Node.js)
-import { createWalletClient, http } from 'viem';
+```typescript Client
+import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
+import { ExactEvmScheme } from '@x402/evm/exact/client';
+import { createWalletClient, createPublicClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
-import { createEscrowFetch } from '@agentokratia/x402-escrow/client';
+import {
+  EscrowScheme,
+  createBalanceSelector,
+  preferTokenPolicy,
+} from '@agentokratia/x402-escrow/client';
 
-// Create walletClient with account + chain (required)
+const WETH = '0x4200000000000000000000000000000000000006';
+const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+
+const account = privateKeyToAccount(process.env.PRIVATE_KEY);
+
 const walletClient = createWalletClient({
-  account: privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`),
-  chain: base,
-  transport: http(),
+  account, chain: base, transport: http(),
 });
 
-const { fetch: escrowFetch } = createEscrowFetch(walletClient, {
-  depositAmount: '10000000', // $10 USDC
+const publicClient = createPublicClient({
+  chain: base, transport: http(),
 });
 
-// First call: signs once, creates session
-await escrowFetch('https://api.example.com/premium');
+// Balance-aware: auto-picks token you can afford
+const client = new x402Client(
+  createBalanceSelector(publicClient, account.address)
+)
+  .register('eip155:8453', new ExactEvmScheme(account))
+  .register('eip155:8453', new EscrowScheme(walletClient))
+  .registerPolicy(preferTokenPolicy([WETH, USDC]));
 
-// Subsequent calls: instant, no signature
-await escrowFetch('https://api.example.com/premium');
+const paidFetch = wrapFetchWithPayment(fetch, client);
+
+const response = await paidFetch('https://api.example.com/premium');
 ```
 
 ```typescript Server
 import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
-import { paymentMiddleware } from '@x402/express';
+import { ExactEvmScheme } from '@x402/evm/exact/server';
 import { EscrowScheme } from '@agentokratia/x402-escrow/server';
+import { paymentMiddleware } from '@x402/express';
 
 const facilitator = new HTTPFacilitatorClient({
   url: 'https://facilitator.agentokratia.com',
   createAuthHeaders: async () => ({
     verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
     settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
-    supported: {},
   }),
 });
 
-const x402 = new x402ResourceServer(facilitator)
-  .register('eip155:8453', new EscrowScheme());
+const escrow = new EscrowScheme({ facilitator });
+
+const server = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new ExactEvmScheme())
+  .register('eip155:8453', escrow);
+
+// Auto-discovers supported tokens (USDC, WETH, DAI, USDT)
+const escrowAccepts = await escrow.buildAccepts({
+  network: 'eip155:8453',
+  price: '$0.01',
+  payTo: '0xYourWallet...',
+});
 
 app.use(paymentMiddleware({
   'GET /api/premium': {
-    accepts: { scheme: 'escrow', price: '$0.01', network: 'eip155:8453', payTo: '0x...' },
+    accepts: [
+      { scheme: 'exact', price: '$0.01', network: 'eip155:8453', payTo: '0x...' },
+      ...escrowAccepts, // Adds WETH, DAI, USDT options
+    ],
   },
-}, x402));
+}, server));
 ```
 
 </CodeGroup>
@@ -208,7 +214,7 @@ sequenceDiagram
 
     Client->>Server: Request resource
     Server-->>Client: 402 + payment requirements
-    Client->>Client: Sign ERC-3009 (exact amount)
+    Client->>Client: Sign ERC-3009 (USDC transfer)
     Client->>Server: Request + signature
     Server->>Facilitator: Verify & settle
     Facilitator->>Blockchain: Transfer USDC
@@ -216,29 +222,27 @@ sequenceDiagram
     Server-->>Client: Response
 ```
 
-### escrow scheme flow
+### escrow scheme flow (with swap)
 
 ```mermaid
 sequenceDiagram
     participant Client
     participant Server
     participant Facilitator
-    participant Escrow
+    participant DEX
+    participant Blockchain
 
-    Note over Client,Escrow: Session Creation (once)
     Client->>Server: Request resource
-    Server-->>Client: 402 + escrow requirements
-    Client->>Client: Sign ERC-3009 (deposit)
+    Server->>Facilitator: Get swap quotes
+    Facilitator->>DEX: Fetch quotes (Uniswap, Paraswap, etc.)
+    Facilitator-->>Server: Quotes for WETH, DAI, USDT
+    Server-->>Client: 402 + payment options
+    Client->>Client: Sign Permit2 (for WETH)
     Client->>Server: Request + signature
-    Server->>Facilitator: Create session
-    Facilitator->>Escrow: Deposit funds
-    Facilitator-->>Server: session.token
-    Server-->>Client: Response + session
-
-    Note over Client,Escrow: Session Usage (unlimited)
-    Client->>Server: Request + session.token
-    Server->>Facilitator: Verify (off-chain)
-    Facilitator-->>Server: Valid, debited
+    Server->>Facilitator: Verify & settle
+    Facilitator->>Blockchain: Execute swap (WETH → USDC)
+    Facilitator->>Blockchain: Transfer USDC to receiver
+    Facilitator-->>Server: Confirmed
     Server-->>Client: Response
 ```
 
@@ -248,13 +252,13 @@ sequenceDiagram
 
 <CardGroup cols={2}>
   <Card title="Gasless for Users" icon="gas-pump">
-    ERC-3009 signatures - no ETH needed for gas
+    ERC-3009 and Permit2 signatures - no ETH needed
   </Card>
-  <Card title="Non-Custodial" icon="shield-check">
-    Escrow funds held in open-source smart contract
+  <Card title="Multi-Token Support" icon="coins">
+    Pay with WETH, DAI, USDT - receiver gets USDC
   </Card>
-  <Card title="100% Reclaimable" icon="rotate-left">
-    Withdraw unused escrow funds anytime
+  <Card title="Automatic Swaps" icon="arrows-rotate">
+    DEX quotes from Uniswap, Paraswap, OpenOcean
   </Card>
   <Card title="Base Network" icon="layer-group">
     Low fees on Base L2 (mainnet + testnet)
@@ -263,36 +267,25 @@ sequenceDiagram
 
 ---
 
-## Built on Commerce Payments Protocol
-
-The escrow scheme is built on [Base's Commerce Payments Protocol](https://blog.base.dev/commerce-payments-protocol) - a production-grade payment infrastructure designed for high-volume commerce.
-
-<Card title="AuthCaptureEscrow Smart Contract" icon="github" href="https://github.com/base/commerce-payments/blob/main/src/AuthCaptureEscrow.sol">
-  View the open-source smart contract on GitHub
-</Card>
-
-The protocol implements a two-phase commit pattern (authorize → capture) that mirrors traditional payment systems:
-
-| Operation | Description |
-|-----------|-------------|
-| **authorize** | User deposits funds into escrow (like a credit card hold) |
-| **capture** | Facilitator releases funds to receiver (partial captures supported) |
-| **void** | Cancel authorization, return all funds to user |
-| **reclaim** | User retrieves uncaptured funds after expiry |
-| **refund** | Receiver returns previously captured funds |
-
-This architecture enables instant off-chain verification while maintaining on-chain security guarantees.
-
----
-
 ## Networks
 
 | Network | Status | Use For |
 |---------|--------|---------|
-| Base Sepolia | Live | Development & testing |
-| Base Mainnet | Coming Soon | Production |
+| Base Mainnet | ✅ Live | Production |
+| Base Sepolia | ✅ Live | Development & testing |
 
 **Facilitator URL:** `https://facilitator.agentokratia.com`
+
+---
+
+## Supported Input Tokens (Base Mainnet)
+
+| Token | Address |
+| ----- | ------- |
+| USDC  | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| WETH  | `0x4200000000000000000000000000000000000006` |
+| DAI   | `0x50c5725949a6f0c72e6c4a641f24049a917db0cb` |
+| USDT  | `0xfde4c96c8593536e31f229ea8f37b2ada2699bb2` |
 
 ---
 

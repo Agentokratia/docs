@@ -11,10 +11,10 @@ The facilitator supports two x402 payment schemes: `exact` and `escrow`. Underst
 
 <CardGroup cols={2}>
   <Card title="exact" icon="receipt">
-    Standard x402 per-request payments using ERC-3009
+    Standard x402 per-request payments. USDC only.
   </Card>
   <Card title="escrow" icon="vault">
-    Session-based payments with pre-deposited funds
+    Multi-token payments with automatic swaps. Pay with any token, receiver gets USDC.
   </Card>
 </CardGroup>
 
@@ -22,7 +22,7 @@ The facilitator supports two x402 payment schemes: `exact` and `escrow`. Underst
 
 ## Exact Scheme
 
-The `exact` scheme is the standard x402 payment method. Each API request requires a fresh ERC-3009 signature authorizing the exact payment amount.
+The `exact` scheme is the standard x402 payment method. Each API request requires an ERC-3009 signature authorizing the exact USDC payment amount.
 
 ### How It Works
 
@@ -48,23 +48,34 @@ sequenceDiagram
 
 | Property | Value |
 | -------- | ----- |
-| Signatures | 1 per request |
-| Gas | Per request (ERC-3009 transfer) |
-| Latency | Higher (blockchain confirmation) |
-| Pre-deposit | None required |
-| Unused funds | N/A (exact amounts) |
+| Input token | USDC only |
+| Signature type | ERC-3009 `transferWithAuthorization` |
+| Gas for user | None (gasless) |
+| Settlement | Direct USDC transfer |
 
 ### When to Use
 
-- **Infrequent calls**: < 10 API calls per day
-- **Variable pricing**: Each request has different cost
-- **No pre-commitment**: Don't want to lock up funds
-- **Simple integration**: Minimal state management
+- **USDC holders**: Users already have USDC
+- **Simple integration**: No swap complexity
+- **Predictable costs**: Exact amounts, no slippage
 
 ### Server Configuration
 
 ```typescript
+import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
+import { ExactEvmScheme } from '@x402/evm/exact/server';
 import { paymentMiddleware } from '@x402/express';
+
+const facilitator = new HTTPFacilitatorClient({
+  url: 'https://facilitator.agentokratia.com',
+  createAuthHeaders: async () => ({
+    verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+    settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+  }),
+});
+
+const server = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new ExactEvmScheme());
 
 app.use(paymentMiddleware({
   'GET /api/endpoint': {
@@ -81,30 +92,25 @@ app.use(paymentMiddleware({
 ### Client Usage
 
 ```typescript
-import { useWalletClient } from 'wagmi';
-import { wrapFetchWithPayment } from '@x402/fetch';
-import { x402Client } from '@x402/core/client';
+import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
+import { ExactEvmScheme } from '@x402/evm/exact/client';
+import { privateKeyToAccount } from 'viem/accounts';
 
-const { data: walletClient } = useWalletClient();
+const account = privateKeyToAccount(process.env.PRIVATE_KEY);
 
-if (walletClient) {
-  const x402 = new x402Client(walletClient);
-  const paidFetch = wrapFetchWithPayment(fetch, x402);
+const client = new x402Client()
+  .register('eip155:8453', new ExactEvmScheme(account));
 
-  // User signs each request
-  const response = await paidFetch('https://api.example.com/endpoint');
-}
+const paidFetch = wrapFetchWithPayment(fetch, client);
+
+const response = await paidFetch('https://api.example.com/endpoint');
 ```
-
-<Note>
-The `exact` scheme requires user signature per request - best for browser dApps.
-</Note>
 
 ---
 
 ## Escrow Scheme
 
-The `escrow` scheme enables session-based payments. Users deposit funds once and make unlimited API calls without additional signatures.
+The `escrow` scheme enables multi-token payments. Users can pay with WETH, DAI, USDT, or USDC. The facilitator automatically swaps non-USDC tokens to USDC before paying the receiver.
 
 ### How It Works
 
@@ -113,24 +119,23 @@ sequenceDiagram
     participant Client
     participant Server
     participant Facilitator
-    participant Escrow Contract
+    participant DEX
+    participant Blockchain
 
-    Note over Client,Escrow Contract: Session Creation (once)
     Client->>Server: Request resource
-    Server-->>Client: 402 + escrow requirements
-    Client->>Client: Sign ERC-3009 for deposit
-    Client->>Server: Request + signature
-    Server->>Facilitator: Create session
-    Facilitator->>Escrow Contract: Deposit funds
-    Escrow Contract-->>Facilitator: Session created
-    Facilitator-->>Server: session.id + session.token
-    Server-->>Client: Response + session info
+    Server->>Facilitator: buildAccepts() - get quotes
+    Facilitator->>DEX: Fetch swap quotes
+    DEX-->>Facilitator: Quotes for WETH, DAI, USDT
+    Facilitator-->>Server: Payment options with quotes
+    Server-->>Client: 402 + multi-token options
 
-    Note over Client,Escrow Contract: Session Usage (unlimited)
-    Client->>Server: Request + session.token
-    Server->>Facilitator: Verify session
-    Facilitator->>Facilitator: Debit balance (off-chain)
-    Facilitator-->>Server: Valid
+    Note over Client: User selects WETH
+    Client->>Client: Sign Permit2 for WETH amount
+    Client->>Server: Request + signature + swap data
+    Server->>Facilitator: Verify & settle
+    Facilitator->>Blockchain: Execute swap via DEX
+    Facilitator->>Blockchain: Transfer USDC to receiver
+    Facilitator-->>Server: Confirmed
     Server-->>Client: Response
 ```
 
@@ -138,121 +143,155 @@ sequenceDiagram
 
 | Property | Value |
 | -------- | ----- |
-| Signatures | 1 per session (not per request) |
-| Gas | Only on session creation |
-| Latency | Instant (off-chain verification) |
-| Pre-deposit | $5 - $100 USDC |
-| Unused funds | 100% reclaimable |
+| Input tokens | USDC, WETH, DAI, USDT |
+| Output token | Always USDC (to receiver) |
+| Signature type | ERC-3009 (USDC) or Permit2 (other tokens) |
+| Gas for user | None (gasless) |
+| DEX aggregators | Uniswap, Paraswap, OpenOcean |
 
 ### When to Use
 
-- **High-frequency calls**: 100s-1000s of API calls
-- **AI agents**: Autonomous operations without user prompts
-- **Low latency**: Real-time applications
-- **Predictable billing**: Session-based budgets
+- **Multi-token support**: Accept payments in any supported token
+- **Better UX**: Users don't need to swap to USDC first
+- **AI agents**: Agents can pay with whatever token they hold
 
 ### Server Configuration
 
 ```typescript
-import { paymentMiddleware } from '@x402/express';
+import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
+import { ExactEvmScheme } from '@x402/evm/exact/server';
 import { EscrowScheme } from '@agentokratia/x402-escrow/server';
+import { paymentMiddleware } from '@x402/express';
+
+const facilitator = new HTTPFacilitatorClient({
+  url: 'https://facilitator.agentokratia.com',
+  createAuthHeaders: async () => ({
+    verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+    settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+  }),
+});
+
+const escrow = new EscrowScheme({ facilitator });
 
 const server = new x402ResourceServer(facilitator)
-  .register('eip155:8453', new EscrowScheme());
+  .register('eip155:8453', new ExactEvmScheme())
+  .register('eip155:8453', escrow);
 
-app.use(paymentMiddleware({
-  'GET /api/endpoint': {
-    accepts: {
-      scheme: 'escrow',
-      price: '$0.01',
-      network: 'eip155:8453',
-      payTo: '0xYourAddress...',
-    },
-  },
-}, server));
-```
-
-### Client Usage
-
-<CodeGroup>
-
-```typescript Browser (wagmi)
-import { useWalletClient } from 'wagmi';
-import { createEscrowFetch } from '@agentokratia/x402-escrow/client';
-
-const { data: walletClient } = useWalletClient();
-
-if (walletClient) {
-  const { fetch: escrowFetch } = createEscrowFetch(walletClient, {
-    depositAmount: '10000000', // $10 USDC
-    storage: 'localStorage',
-  });
-
-  // First call creates session
-  const response1 = await escrowFetch('https://api.example.com/endpoint');
-
-  // Subsequent calls reuse session (instant, no signature)
-  const response2 = await escrowFetch('https://api.example.com/endpoint');
-}
-```
-
-```typescript Node.js
-import { createWalletClient, http } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { base } from 'viem/chains';
-import { createEscrowFetch } from '@agentokratia/x402-escrow/client';
-
-const walletClient = createWalletClient({
-  account: privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`),
-  chain: base,
-  transport: http(),
+// Auto-discovers supported tokens and fetches quotes
+const escrowAccepts = await escrow.buildAccepts({
+  network: 'eip155:8453',
+  price: '$0.01',
+  payTo: '0xYourAddress...',
 });
 
-const { fetch: escrowFetch } = createEscrowFetch(walletClient, {
-  depositAmount: '10000000', // $10 USDC
-});
-
-// First call creates session
-const response1 = await escrowFetch('https://api.example.com/endpoint');
-
-// Subsequent calls reuse session (instant, no signature)
-const response2 = await escrowFetch('https://api.example.com/endpoint');
-```
-
-</CodeGroup>
-
-### Session Lifecycle
-
-1. **Creation**: User signs ERC-3009, facilitator deposits to escrow contract
-2. **Active**: Session has balance, requests debit from it
-3. **Depleted**: Balance exhausted, new session needed
-4. **Expired**: Past expiry time, funds reclaimable
-5. **Reclaimed**: User withdrew remaining balance
-
-<Info>
-Sessions are scoped to `(user, payTo, network)`. Different APIs from the same provider share a session.
-</Info>
-
----
-
-## Accepting Both Schemes
-
-Servers can accept both schemes, letting clients choose:
-
-```typescript
 app.use(paymentMiddleware({
   'GET /api/endpoint': {
     accepts: [
-      // Prefer escrow for high-frequency
-      { scheme: 'escrow', price: '$0.01', network: 'eip155:8453', payTo: '0x...' },
-      // Fall back to exact for one-off
       { scheme: 'exact', price: '$0.01', network: 'eip155:8453', payTo: '0x...' },
+      ...escrowAccepts, // Adds USDC, WETH, DAI, USDT options
     ],
   },
 }, server));
 ```
 
-The facilitator will use the first matching scheme the client supports.
+<Note>
+  The `buildAccepts()` method returns an array of payment options for each supported input token. Spreading `...escrowAccepts` into your accepts array enables multi-token payments.
+</Note>
+
+### Client Usage
+
+```typescript
+import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
+import { ExactEvmScheme } from '@x402/evm/exact/client';
+import { createWalletClient, createPublicClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { base } from 'viem/chains';
+import {
+  EscrowScheme,
+  createBalanceSelector,
+  preferTokenPolicy,
+} from '@agentokratia/x402-escrow/client';
+
+const WETH = '0x4200000000000000000000000000000000000006';
+const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+
+const account = privateKeyToAccount(process.env.PRIVATE_KEY);
+
+const walletClient = createWalletClient({
+  account, chain: base, transport: http(),
+});
+
+const publicClient = createPublicClient({
+  chain: base, transport: http(),
+});
+
+// Balance-aware: auto-picks token you can afford
+const client = new x402Client(
+  createBalanceSelector(publicClient, account.address)
+)
+  .register('eip155:8453', new ExactEvmScheme(account))
+  .register('eip155:8453', new EscrowScheme(walletClient))
+  .registerPolicy(preferTokenPolicy([WETH, USDC]));
+
+const paidFetch = wrapFetchWithPayment(fetch, client);
+
+const response = await paidFetch('https://api.example.com/endpoint');
+```
+
+### Token Selection
+
+The client SDK provides two ways to control which token is used:
+
+#### Balance-Aware Selection
+
+`createBalanceSelector` checks on-chain balances and picks the first token the user can afford:
+
+```typescript
+const client = new x402Client(
+  createBalanceSelector(publicClient, account.address)
+);
+```
+
+#### Token Preference Policy
+
+`preferTokenPolicy` reorders payment options by your preferred token order:
+
+```typescript
+const client = new x402Client(
+  createBalanceSelector(publicClient, account.address)
+)
+  .registerPolicy(preferTokenPolicy([WETH, USDC, DAI]));
+```
+
+This prefers WETH first, then USDC, then DAI.
+
+---
+
+## Accepting Both Schemes
+
+Servers can accept both schemes, letting clients choose based on what tokens they hold:
+
+```typescript
+const escrow = new EscrowScheme({ facilitator });
+const escrowAccepts = await escrow.buildAccepts({
+  network: 'eip155:8453',
+  price: '$0.01',
+  payTo: '0xYourAddress...',
+});
+
+app.use(paymentMiddleware({
+  'GET /api/endpoint': {
+    accepts: [
+      { scheme: 'exact', price: '$0.01', network: 'eip155:8453', payTo: '0x...' },
+      ...escrowAccepts,
+    ],
+  },
+}, server));
+```
+
+The client will automatically select the best option based on:
+1. Token balances (via `createBalanceSelector`)
+2. Token preferences (via `preferTokenPolicy`)
 
 ---
 
@@ -260,19 +299,19 @@ The facilitator will use the first matching scheme the client supports.
 
 | Aspect | `exact` | `escrow` |
 | ------ | ------- | -------- |
-| **UX** | Sign every request | Sign once |
-| **Speed** | Slower (on-chain) | Instant |
-| **Cost** | Gas per request | Gas once |
-| **Commitment** | None | Pre-deposit |
-| **Refunds** | N/A | Reclaimable |
-| **Complexity** | Simple | Sessions to manage |
-| **AI Agents** | Poor fit | Ideal |
+| **Input tokens** | USDC only | USDC, WETH, DAI, USDT |
+| **Signature** | ERC-3009 | ERC-3009 or Permit2 |
+| **Gas for user** | None | None |
+| **Swap needed** | No | Yes (for non-USDC) |
+| **Slippage** | None | ~0.5% (configurable) |
+| **Complexity** | Simple | More setup |
+| **Best for** | USDC holders | Multi-token flexibility |
 
 <CardGroup cols={2}>
-  <Card title="Sessions Deep Dive" icon="clock" href="/x402/concepts/sessions">
-    Learn more about escrow session lifecycle
+  <Card title="Server Guide" icon="server" href="/x402/integration/server">
+    Full server integration guide
   </Card>
-  <Card title="Settlement" icon="arrow-right-arrow-left" href="/x402/concepts/settlement">
-    How payments are settled on-chain
+  <Card title="Client Guide" icon="laptop" href="/x402/integration/client">
+    Full client SDK documentation
   </Card>
 </CardGroup>
