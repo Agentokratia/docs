@@ -5,18 +5,18 @@ description: Protect your API endpoints with x402 payments
 
 # Server Integration
 
-Add payment protection to your API endpoints with x402 escrow.
+Add payment protection to your API endpoints with x402.
 
 ## Installation
 
 <CodeGroup>
 
 ```bash npm
-npm install @x402/core @x402/express @agentokratia/x402-escrow
+npm install @x402/core @x402/next @x402/fetch @x402/evm @agentokratia/x402-escrow viem
 ```
 
 ```bash pnpm
-pnpm add @x402/core @x402/express @agentokratia/x402-escrow
+pnpm add @x402/core @x402/next @x402/fetch @x402/evm @agentokratia/x402-escrow viem
 ```
 
 </CodeGroup>
@@ -25,27 +25,82 @@ pnpm add @x402/core @x402/express @agentokratia/x402-escrow
 
 ```typescript
 import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
+import { ExactEvmScheme } from '@x402/evm/exact/server';
 import { EscrowScheme } from '@agentokratia/x402-escrow/server';
 
 // Configure facilitator client with your API key
 const facilitator = new HTTPFacilitatorClient({
-  url: process.env.FACILITATOR_URL!,
+  url: 'https://facilitator.agentokratia.com',
   createAuthHeaders: async () => ({
     verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
     settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
-    supported: {},
   }),
 });
 
-// Create x402 server with escrow support
-// Note: EscrowScheme requires no config - it's auto-discovered from facilitator
-const x402 = new x402ResourceServer(facilitator)
-  .register('eip155:8453', new EscrowScheme());
+// Create escrow scheme (requires facilitator config)
+const escrow = new EscrowScheme({ facilitator });
+
+const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+
+// Create x402 server with both exact and escrow support
+const server = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new ExactEvmScheme())
+  .register('eip155:8453', escrow);
 ```
 
 <Note>
-  The `EscrowScheme` constructor takes no arguments. All configuration (contract addresses, token info, etc.) is automatically discovered from the facilitator.
+  The `EscrowScheme` server constructor requires `{ facilitator }` config. This enables the scheme to fetch DEX quotes and auto-discover supported tokens.
 </Note>
+
+## Next.js with paymentProxy
+
+Use `@x402/next` for Next.js applications with `paymentProxy`:
+
+```typescript
+// middleware.ts
+import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
+import { ExactEvmScheme } from '@x402/evm/exact/server';
+import { EscrowScheme } from '@agentokratia/x402-escrow/server';
+import { paymentProxy } from '@x402/next';
+
+const facilitator = new HTTPFacilitatorClient({
+  url: 'https://facilitator.agentokratia.com',
+  createAuthHeaders: async () => ({
+    verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+    settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+  }),
+});
+
+const escrow = new EscrowScheme({ facilitator });
+
+const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+
+const server = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new ExactEvmScheme())
+  .register('eip155:8453', escrow);
+
+// Auto-discovers supported tokens (USDC, WETH, DAI, USDT)
+const escrowAccepts = await escrow.buildAccepts({
+  network: 'eip155:8453',
+  price: '$0.01',
+  payTo: '0xYourWallet...',
+  asset: USDC, // settlement token
+});
+
+export const middleware = paymentProxy({
+  '/api/premium': {
+    accepts: [
+      { scheme: 'exact', network: 'eip155:8453',
+        price: '$0.01', payTo: '0xYourWallet...' },
+      ...escrowAccepts, // Adds USDC, WETH, DAI, USDT options
+    ],
+  },
+}, server);
+```
+
+<Tip>
+  **Multi-token support:** The `buildAccepts()` method returns an array of payment options for each supported input token. Spreading `...escrowAccepts` into your accepts array enables payments in USDC, WETH, DAI, and USDT. The receiver always gets USDC.
+</Tip>
 
 ## Express Middleware
 
@@ -54,64 +109,121 @@ Use `@x402/express` for Express.js applications:
 ```typescript
 import express from 'express';
 import { paymentMiddleware } from '@x402/express';
+import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
+import { ExactEvmScheme } from '@x402/evm/exact/server';
+import { EscrowScheme } from '@agentokratia/x402-escrow/server';
 
 const app = express();
+
+const facilitator = new HTTPFacilitatorClient({
+  url: 'https://facilitator.agentokratia.com',
+  createAuthHeaders: async () => ({
+    verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+    settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+  }),
+});
+
+const escrow = new EscrowScheme({ facilitator });
+
+const server = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new ExactEvmScheme())
+  .register('eip155:8453', escrow);
+
+// Get multi-token payment options
+const escrowAccepts = await escrow.buildAccepts({
+  network: 'eip155:8453',
+  price: '$0.01',
+  payTo: process.env.PAYMENT_ADDRESS!,
+});
 
 // Define payment-protected routes
 app.use(paymentMiddleware({
   'GET /api/premium': {
-    accepts: {
-      scheme: 'escrow',
-      price: '$0.01',        // Human-readable price
-      network: 'eip155:8453',
-      payTo: process.env.PAYMENT_ADDRESS!,
-    },
+    accepts: [
+      { scheme: 'exact', network: 'eip155:8453',
+        price: '$0.01', payTo: process.env.PAYMENT_ADDRESS! },
+      ...escrowAccepts,
+    ],
   },
-  'POST /api/generate': {
-    accepts: {
-      scheme: 'escrow',
-      price: '$0.05',
-      network: 'eip155:8453',
-      payTo: process.env.PAYMENT_ADDRESS!,
-    },
-  },
-}, x402));
+}, server));
 
 // Your route handlers
 app.get('/api/premium', (req, res) => {
   res.json({ data: 'Premium content' });
 });
 
-app.post('/api/generate', (req, res) => {
-  res.json({ result: 'Generated content' });
-});
-
 app.listen(3000);
 ```
 
-## Next.js Integration
+## Dynamic Pricing (Custom API Routes)
 
-Use `@x402/next` for Next.js applications:
+For endpoints with per-request pricing (like tip amounts), use `buildAcceptsResolved` for eager quotes:
 
 ```typescript
-// app/api/premium/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { withPayment } from '@x402/next';
-import { x402 } from '@/lib/x402'; // Your configured x402 instance
+import { HTTPFacilitatorClient } from '@x402/core/server';
+import { EscrowScheme, preprocessSwapPayload } from '@agentokratia/x402-escrow/server';
 
-export const GET = withPayment(
-  async (request: NextRequest) => {
-    return NextResponse.json({ data: 'Premium content' });
-  },
-  {
-    scheme: 'escrow',
-    price: '$0.01',
-    network: 'eip155:8453',
-    payTo: process.env.PAYMENT_ADDRESS!,
-  },
-  x402
-);
+const facilitator = new HTTPFacilitatorClient({
+  url: 'https://facilitator.agentokratia.com',
+  createAuthHeaders: async () => ({
+    verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+    settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
+  }),
+});
+
+const escrow = new EscrowScheme({ facilitator });
+
+export async function GET(request: NextRequest) {
+  const amount = request.nextUrl.searchParams.get('amount');
+  const recipient = request.nextUrl.searchParams.get('to');
+  const paymentSignature = request.headers.get('payment-signature');
+
+  if (!paymentSignature) {
+    // Fetch fresh DEX quotes with buildAcceptsResolved
+    const accepts = await escrow.buildAcceptsResolved({
+      network: 'eip155:8453',
+      price: `$${amount}`,
+      payTo: recipient,
+    });
+
+    const requirements = accepts.map((a) => ({
+      scheme: a.scheme,
+      network: a.network,
+      asset: a.price.asset,
+      amount: a.price.amount,
+      payTo: a.payTo,
+      maxTimeoutSeconds: 600,
+      extra: a.price.extra || {},
+    }));
+
+    const response = NextResponse.json({ message: 'Payment required' }, { status: 402 });
+    response.headers.set(
+      'PAYMENT-REQUIRED',
+      Buffer.from(JSON.stringify(requirements)).toString('base64')
+    );
+    return response;
+  }
+
+  // Process payment
+  const payload = JSON.parse(Buffer.from(paymentSignature, 'base64').toString());
+  const processed = preprocessSwapPayload({ x402Version: 2, ...payload });
+
+  const verifyResult = await facilitator.verify(processed, processed.accepted);
+  if (!verifyResult.isValid) {
+    return NextResponse.json({ error: verifyResult.invalidReason }, { status: 402 });
+  }
+
+  const settleResult = await facilitator.settle(processed, processed.accepted);
+  return NextResponse.json({ success: true, transaction: settleResult.transaction });
+}
 ```
+
+<Note>
+  **buildAccepts vs buildAcceptsResolved:**
+  - `buildAccepts()` returns lazy price functions, ideal for middleware where quotes are fetched on-demand
+  - `buildAcceptsResolved()` returns eager quotes with actual DEX data, ideal for dynamic pricing APIs
+</Note>
 
 ## Pricing Formats
 
@@ -133,25 +245,11 @@ price: '1000000'     // $1.00
 Support multiple networks by registering schemes:
 
 ```typescript
-const x402 = new x402ResourceServer(facilitator)
-  .register('eip155:8453', new EscrowScheme())    // Base Mainnet
-  .register('eip155:84532', new EscrowScheme());  // Base Sepolia
-```
-
-## Adding Hooks
-
-Monitor payment events with hooks:
-
-```typescript
-const x402 = new x402ResourceServer(facilitator)
-  .register('eip155:8453', new EscrowScheme())
-  .onBeforeVerify(async (ctx) => {
-    console.log('Verifying payment:', ctx.paymentPayload);
-  })
-  .onAfterSettle(async (ctx) => {
-    console.log('Payment settled:', ctx.settleResponse);
-    // Track revenue, update analytics, etc.
-  });
+const server = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new ExactEvmScheme())    // Base Mainnet
+  .register('eip155:8453', escrow)
+  .register('eip155:84532', new ExactEvmScheme())   // Base Sepolia
+  .register('eip155:84532', escrow);
 ```
 
 ## Environment Variables
@@ -171,32 +269,6 @@ PAYMENT_ADDRESS=0xYourWalletAddress
   Never commit API keys to version control. Use environment variables or a secrets manager.
 </Warning>
 
-## Accepting Both Schemes
-
-Accept both exact and escrow schemes:
-
-```typescript
-// Accept either scheme (escrow preferred for high-frequency)
-app.use(paymentMiddleware({
-  'GET /api/premium': {
-    accepts: [
-      {
-        scheme: 'escrow',
-        price: '$0.01',
-        network: 'eip155:8453',
-        payTo: process.env.PAYMENT_ADDRESS!,
-      },
-      {
-        scheme: 'exact',
-        price: '$0.01',
-        network: 'eip155:8453',
-        payTo: process.env.PAYMENT_ADDRESS!,
-      },
-    ],
-  },
-}, x402));
-```
-
 ## Error Handling
 
 The middleware automatically handles payment errors:
@@ -210,8 +282,9 @@ The middleware automatically handles payment errors:
 For custom error handling:
 
 ```typescript
-const x402 = new x402ResourceServer(facilitator)
-  .register('eip155:8453', new EscrowScheme())
+const server = new x402ResourceServer(facilitator)
+  .register('eip155:8453', new ExactEvmScheme())
+  .register('eip155:8453', escrow)
   .onError(async (ctx, error) => {
     console.error('Payment error:', error);
     // Custom error handling, alerting, etc.
@@ -223,18 +296,11 @@ const x402 = new x402ResourceServer(facilitator)
 Use Base Sepolia testnet for development:
 
 ```typescript
-// Test configuration (same URL, same API key - just change network)
-const facilitator = new HTTPFacilitatorClient({
-  url: 'https://facilitator.agentokratia.com',
-  createAuthHeaders: async () => ({
-    verify: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
-    settle: { Authorization: `Bearer ${process.env.X402_API_KEY}` },
-    supported: {},
-  }),
+const escrowAccepts = await escrow.buildAccepts({
+  network: 'eip155:84532', // Base Sepolia
+  price: '$0.01',
+  payTo: process.env.PAYMENT_ADDRESS!,
 });
-
-const x402 = new x402ResourceServer(facilitator)
-  .register('eip155:84532', new EscrowScheme()); // Base Sepolia
 ```
 
 ## Pricing Examples

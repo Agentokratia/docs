@@ -1,25 +1,117 @@
 ---
 title: Client Integration
-description: Integrate x402 escrow payments into your client application
+description: Integrate x402 payments into your client application
 ---
 
 # Client Integration
 
-The x402 escrow client SDK makes it easy to add payments to any application.
+The x402 client SDK makes it easy to add automatic payments to any application.
 
 ## Installation
 
 <CodeGroup>
 
 ```bash npm
-npm install @agentokratia/x402-escrow
+npm install @x402/core @x402/fetch @x402/evm @agentokratia/x402-escrow viem
 ```
 
 ```bash pnpm
-pnpm add @agentokratia/x402-escrow
+pnpm add @x402/core @x402/fetch @x402/evm @agentokratia/x402-escrow viem
 ```
 
 </CodeGroup>
+
+## Node.js / Agent (Balance-Aware)
+
+For autonomous agents and server-side scripts, use balance-aware token selection:
+
+```typescript
+import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
+import { ExactEvmScheme } from '@x402/evm/exact/client';
+import { createWalletClient, createPublicClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { base } from 'viem/chains';
+import {
+  EscrowScheme,
+  createBalanceSelector,
+  preferTokenPolicy,
+} from '@agentokratia/x402-escrow/client';
+
+const WETH = '0x4200000000000000000000000000000000000006';
+const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+
+const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`);
+
+const walletClient = createWalletClient({
+  account, chain: base, transport: http(),
+});
+
+const publicClient = createPublicClient({
+  chain: base, transport: http(),
+});
+
+// Balance-aware: auto-picks USDC (gasless) or WETH/DAI (swap)
+const client = new x402Client(
+  createBalanceSelector(publicClient, account.address)
+)
+  .register('eip155:8453', new ExactEvmScheme(account))
+  .register('eip155:8453', new EscrowScheme(walletClient))
+  .registerPolicy(preferTokenPolicy([WETH, USDC]));
+
+const paidFetch = wrapFetchWithPayment(fetch, client);
+
+// 402 responses are handled automatically
+const response = await paidFetch('https://api.example.com/premium');
+const data = await response.json();
+```
+
+<Tip>
+  **Balance-aware selection:** The `createBalanceSelector` checks on-chain balances and picks the first token the wallet can afford. Combined with `preferTokenPolicy`, you control the priority order.
+</Tip>
+
+## Browser (wagmi)
+
+For React applications with wagmi:
+
+```typescript
+import { useWalletClient, usePublicClient, useAccount } from 'wagmi';
+import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
+import { ExactEvmScheme } from '@x402/evm/exact/client';
+import {
+  EscrowScheme,
+  createBalanceSelector,
+} from '@agentokratia/x402-escrow/client';
+
+function PaymentComponent() {
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+  const { address } = useAccount();
+
+  const callPaidApi = async () => {
+    if (!walletClient || !publicClient || !address) return;
+
+    const signer = {
+      address,
+      signTypedData: (msg) => walletClient.signTypedData({
+        account: walletClient.account,
+        ...msg
+      }),
+    };
+
+    const client = new x402Client(
+      createBalanceSelector(publicClient, address)
+    )
+      .register('eip155:8453', new ExactEvmScheme(signer))
+      .register('eip155:8453', new EscrowScheme(walletClient));
+
+    const paidFetch = wrapFetchWithPayment(fetch, client);
+    const response = await paidFetch('https://api.example.com/premium');
+    return response.json();
+  };
+
+  return <button onClick={callPaidApi}>Call Paid API</button>;
+}
+```
 
 ## Getting a WalletClient
 
@@ -29,31 +121,14 @@ The escrow client requires a viem `WalletClient`. Here's how to get one:
 
 ```tsx
 import { useWalletClient } from 'wagmi';
-import { createEscrowFetch } from '@agentokratia/x402-escrow/client';
 
-function PaymentButton() {
+function MyComponent() {
   const { data: walletClient } = useWalletClient();
-
-  const handlePay = async () => {
-    if (!walletClient) {
-      alert('Please connect your wallet first');
-      return;
-    }
-
-    const { fetch: escrowFetch } = createEscrowFetch(walletClient, {
-      storage: 'localStorage',
-    });
-
-    const response = await escrowFetch('https://api.example.com/premium');
-    const data = await response.json();
-    console.log(data);
-  };
-
-  return <button onClick={handlePay}>Pay & Call API</button>;
+  // walletClient is available when wallet is connected
 }
 ```
 
-### Option B: With viem directly (non-React)
+### Option B: With viem directly (Browser)
 
 ```typescript
 import { createWalletClient, custom } from 'viem';
@@ -87,271 +162,140 @@ const walletClient = createWalletClient({
   Never use private keys in browser code. Option C is for server-side scripts and testing only.
 </Warning>
 
-## Basic Usage
+## Token Selection Policies
+
+Control which token the client prefers:
 
 ```typescript
-import { createEscrowFetch } from '@agentokratia/x402-escrow/client';
+import { preferTokenPolicy } from '@agentokratia/x402-escrow/client';
 
-// Create escrow-enabled fetch (pass walletClient as first argument)
-const { fetch: escrowFetch, scheme, x402 } = createEscrowFetch(walletClient);
+const WETH = '0x4200000000000000000000000000000000000006';
+const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const DAI = '0x50c5725949a6f0c72e6c4a641f24049a917db0cb';
 
-// Use like regular fetch - sessions handled automatically
-const response = await escrowFetch('https://api.example.com/premium');
-const data = await response.json();
+// Prefer WETH first, then USDC, then DAI
+const client = new x402Client(
+  createBalanceSelector(publicClient, account.address)
+)
+  .register('eip155:8453', new ExactEvmScheme(account))
+  .register('eip155:8453', new EscrowScheme(walletClient))
+  .registerPolicy(preferTokenPolicy([WETH, USDC, DAI]));
 ```
 
-<Note>
-  The facilitator URL is automatically discovered from the API's 402 response. You don't need to configure it manually.
-</Note>
+## Manual Balance Checking
 
-## Configuration Options
+For custom balance logic:
 
 ```typescript
-import { createEscrowFetch, type CreateEscrowFetchOptions } from '@agentokratia/x402-escrow/client';
+import { checkBalance } from '@agentokratia/x402-escrow/client';
 
-const options: CreateEscrowFetchOptions = {
-  // Session duration in seconds (default: 3600 = 1 hour)
-  sessionDuration: 3600,
+const canAfford = await checkBalance(
+  publicClient,
+  account.address,
+  USDC,
+  BigInt('1000000') // $1 USDC
+);
 
-  // Refund window after session expires (default: 86400 = 24 hours)
-  refundWindow: 86400,
-
-  // Storage type: 'memory' (default) or 'localStorage'
-  storage: 'localStorage',
-
-  // localStorage key (default: 'x402-sessions')
-  storageKey: 'my-app-sessions',
-
-  // Custom deposit amount in atomic units (e.g., "10000000" for $10 USDC)
-  depositAmount: '10000000',
-
-  // Custom fetch implementation (default: globalThis.fetch)
-  fetch: customFetch,
-};
-
-const { fetch: escrowFetch, scheme, x402 } = createEscrowFetch(walletClient, options);
-```
-
-## Return Value
-
-`createEscrowFetch` returns an object with three properties:
-
-```typescript
-interface EscrowFetchResult {
-  /** Fetch function with automatic payment + session handling */
-  fetch: EscrowFetch;
-
-  /** Access to underlying scheme for session management */
-  scheme: EscrowScheme;
-
-  /** Access to x402Client for adding hooks */
-  x402: x402Client;
+if (canAfford) {
+  // Proceed with payment
 }
 ```
 
-## Session Management
+## API Exports
 
-Sessions are managed automatically, but you can access them via the scheme:
+### Client Exports
 
-```typescript
-const { fetch: escrowFetch, scheme } = createEscrowFetch(walletClient);
+| Export                  | Description                                       |
+| ----------------------- | ------------------------------------------------- |
+| `EscrowScheme`          | Client scheme for x402Client (takes WalletClient) |
+| `createBalanceSelector` | Async selector that checks on-chain balances      |
+| `preferTokenPolicy`     | Sync policy that reorders by token preference     |
+| `checkBalance`          | Utility for custom balance checks                 |
+| `signERC3009`           | Sign ERC-3009 authorization                       |
+| `signPermit2TransferFrom` | Sign Permit2 transfer                           |
+| `computePaymentNonce`   | Derive deterministic nonce from payment params    |
+| `PERMIT2_ADDRESS`       | Universal Permit2 contract address                |
+| `decompressCalldata`    | Decompress gzipped aggregator calldata            |
 
-// Get all sessions for a receiver
-const sessions = scheme.sessions.getAllForReceiver('0xReceiver...');
+## Supported Input Tokens (Base Mainnet)
 
-// Check if valid session exists for an amount
-const hasValid = scheme.sessions.hasValid('0xReceiver...', '10000');
-
-// Get session by ID
-const session = scheme.sessions.getById('session-id');
-
-// Find best session for a receiver and amount
-const best = scheme.sessions.findBest('0xReceiver...', BigInt('10000'));
-```
-
-## Session Selection
-
-Control which session to use per-request:
-
-```typescript
-// Auto-select best session (default)
-await escrowFetch(url);
-await escrowFetch(url, { session: 'auto' });
-
-// Force create new session (ignores existing sessions)
-await escrowFetch(url, { session: 'new' });
-
-// Use specific session by ID
-await escrowFetch(url, { session: 'session-abc-123' });
-```
-
-## Adding Hooks
-
-Use the `x402` client to add payment lifecycle hooks:
-
-```typescript
-const { fetch: escrowFetch, x402 } = createEscrowFetch(walletClient);
-
-// Called before creating payment payload
-x402.onBeforePaymentCreation(async (ctx) => {
-  console.log('Creating payment for:', ctx.paymentRequirements);
-});
-
-// Called after payment payload is created
-x402.onAfterPaymentCreation(async (ctx) => {
-  console.log('Payment created:', ctx.paymentPayload);
-});
-```
+| Token | Address                                      |
+| ----- | -------------------------------------------- |
+| USDC  | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| WETH  | `0x4200000000000000000000000000000000000006` |
+| DAI   | `0x50c5725949a6f0c72e6c4a641f24049a917db0cb` |
+| USDT  | `0xfde4c96c8593536e31f229ea8f37b2ada2699bb2` |
 
 ## Error Handling
 
 ```typescript
 try {
-  const response = await escrowFetch(url);
+  const response = await paidFetch(url);
 
   if (!response.ok) {
     const error = await response.json();
-
-    switch (error.reason) {
-      case 'insufficient_balance':
-        // Create new session with more funds
-        await escrowFetch(url, { session: 'new' });
-        break;
-      case 'session_expired':
-        // Session needs renewal (will auto-create new one)
-        break;
-      case 'invalid_session_token':
-        // Token corrupted, force new session
-        await escrowFetch(url, { session: 'new' });
-        break;
-    }
+    console.error('Payment failed:', error);
   }
 } catch (err) {
-  // Network or signature error
+  if (err.message.includes('User rejected')) {
+    // User cancelled wallet signature
+    console.log('Transaction cancelled by user');
+  } else {
+    // Network or other error
+    console.error('Error:', err);
+  }
 }
-```
-
-## Advanced: Manual Setup
-
-For full control, compose the components manually:
-
-```typescript
-import { x402Client } from '@x402/core/client';
-import { wrapFetchWithPayment } from '@x402/fetch';
-import { EscrowScheme, withSessionExtraction } from '@agentokratia/x402-escrow/client';
-
-// Create scheme
-const escrowScheme = new EscrowScheme(walletClient, {
-  storage: 'localStorage',
-  depositAmount: '10000000',
-});
-
-// Create x402 client and register scheme
-const x402 = new x402Client()
-  .register('eip155:8453', escrowScheme)
-  .onAfterPaymentCreation(ctx => console.log('Payment:', ctx));
-
-// Wrap fetch with payment handling
-const paidFetch = wrapFetchWithPayment(fetch, x402);
-
-// Add session extraction
-const escrowFetch = withSessionExtraction(paidFetch, escrowScheme);
-
-// Use it
-const response = await escrowFetch('https://api.example.com/premium');
-```
-
-## Axios Integration
-
-For Axios users:
-
-```typescript
-import axios from 'axios';
-import { wrapAxiosWithPayment } from '@x402/axios';
-import { EscrowScheme, withAxiosSessionExtraction } from '@agentokratia/x402-escrow/client';
-
-const escrowScheme = new EscrowScheme(walletClient);
-const x402 = new x402Client().register('eip155:8453', escrowScheme);
-
-const paidAxios = wrapAxiosWithPayment(axios.create(), x402);
-
-// Add session extraction interceptor
-paidAxios.interceptors.response.use(withAxiosSessionExtraction(escrowScheme));
-
-const response = await paidAxios.get('https://api.example.com/premium');
-```
-
-## Storage Options
-
-Choose between memory and localStorage:
-
-```typescript
-import { InMemoryStorage, BrowserLocalStorage, createStorage } from '@agentokratia/x402-escrow/client';
-
-// In-memory (default) - ephemeral, good for servers
-const memoryStorage = new InMemoryStorage();
-
-// Browser localStorage - persistent across reloads
-const browserStorage = new BrowserLocalStorage('my-key');
-
-// Factory function (convenience)
-const storage = createStorage('localStorage', 'my-key');
 ```
 
 ## TypeScript Types
 
 ```typescript
 import type {
-  EscrowFetch,
-  EscrowFetchResult,
-  EscrowRequestInit,
-  CreateEscrowFetchOptions,
   EscrowSchemeOptions,
-  StoredSession,
-  SessionStorage,
-  PayloadOptions,
 } from '@agentokratia/x402-escrow/client';
-```
-
-## StoredSession Structure
-
-```typescript
-interface StoredSession {
-  sessionId: string;
-  sessionToken: string;
-  network: string;       // e.g., 'eip155:8453'
-  payer: Address;
-  receiver: Address;
-  balance: string;       // Available balance in atomic units
-  authorizationExpiry: number;  // Unix timestamp
-  createdAt: number;     // Unix timestamp
-  status: 'active' | 'inactive' | 'expired';
-}
 ```
 
 ## React Example
 
 ```tsx
 import { useCallback, useState } from 'react';
-import { useWalletClient } from 'wagmi';
-import { createEscrowFetch } from '@agentokratia/x402-escrow/client';
+import { useWalletClient, usePublicClient, useAccount } from 'wagmi';
+import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
+import { ExactEvmScheme } from '@x402/evm/exact/client';
+import {
+  EscrowScheme,
+  createBalanceSelector,
+} from '@agentokratia/x402-escrow/client';
 
 function PaidApiButton() {
   const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+  const { address } = useAccount();
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const callApi = useCallback(async () => {
-    if (!walletClient) return;
+    if (!walletClient || !publicClient || !address) return;
 
     setLoading(true);
     try {
-      const { fetch: escrowFetch } = createEscrowFetch(walletClient, {
-        storage: 'localStorage',
-        depositAmount: '10000000', // $10 USDC
-      });
+      const signer = {
+        address,
+        signTypedData: (msg) => walletClient.signTypedData({
+          account: walletClient.account,
+          ...msg
+        }),
+      };
 
-      const response = await escrowFetch('https://api.example.com/premium');
+      const client = new x402Client(
+        createBalanceSelector(publicClient, address)
+      )
+        .register('eip155:8453', new ExactEvmScheme(signer))
+        .register('eip155:8453', new EscrowScheme(walletClient));
+
+      const paidFetch = wrapFetchWithPayment(fetch, client);
+
+      const response = await paidFetch('https://api.example.com/premium');
       const data = await response.json();
       setResult(JSON.stringify(data, null, 2));
     } catch (err) {
@@ -359,7 +303,7 @@ function PaidApiButton() {
     } finally {
       setLoading(false);
     }
-  }, [walletClient]);
+  }, [walletClient, publicClient, address]);
 
   return (
     <div>
@@ -373,7 +317,7 @@ function PaidApiButton() {
 ```
 
 <Note>
-  For production, consider memoizing the `escrowFetch` function or creating it once at the app level to reuse sessions efficiently.
+  For production, consider memoizing the x402 client setup to avoid recreating it on every call.
 </Note>
 
 ## Troubleshooting
@@ -384,20 +328,13 @@ function PaidApiButton() {
 
     ```typescript
     try {
-      await escrowFetch(url);
+      const response = await paidFetch(url);
     } catch (err) {
       if (err.message.includes('User rejected')) {
         // User cancelled - show friendly message
         alert('Transaction cancelled');
       }
     }
-    ```
-  </Accordion>
-  <Accordion title="Session not found" icon="question">
-    The session token may be corrupted or expired. Force a new session:
-
-    ```typescript
-    await escrowFetch(url, { session: 'new' });
     ```
   </Accordion>
   <Accordion title="Wrong network" icon="network-wired">
@@ -412,11 +349,12 @@ function PaidApiButton() {
     }
     ```
   </Accordion>
-  <Accordion title="Insufficient USDC balance" icon="coins">
-    The wallet needs enough USDC for the deposit amount. Check balance:
+  <Accordion title="Insufficient token balance" icon="coins">
+    The wallet needs enough tokens for the payment. The `createBalanceSelector` automatically picks tokens you can afford:
 
     ```typescript
     import { formatUnits } from 'viem';
+    import { erc20Abi } from 'viem';
 
     const balance = await publicClient.readContract({
       address: USDC_ADDRESS,
